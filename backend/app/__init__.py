@@ -1,0 +1,1 @@
+"""Restaurant Scout backend application."""
