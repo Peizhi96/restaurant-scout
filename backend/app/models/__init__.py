@@ -16,6 +16,7 @@ from app.models.ingestion import (
     RawListingStatus,
 )
 from app.models.listing import Listing, ListingStatus, MarketStatus
+from app.models.scoring import ListingScore
 from app.models.tracking import (
     DuplicateReviewStatus,
     EventType,
@@ -43,6 +44,7 @@ __all__ = [
     "ListingEvent",
     "ListingSnapshot",
     "ListingSourceRecord",
+    "ListingScore",
     "ListingStatus",
     "ListingDueDiligence",
     "MarketStatus",

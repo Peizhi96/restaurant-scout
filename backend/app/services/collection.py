@@ -13,6 +13,7 @@ from app.models.ingestion import (
     RawListingStatus,
 )
 from app.services.raw_normalizer import normalize_raw_listing
+from app.services.scoring import score_listing
 from app.services.tracking import ingest_observation, reconcile_missing_source_records
 
 
@@ -56,6 +57,7 @@ def run_collector(db: Session, collector: Collector) -> CollectionRun:
             try:
                 observation = normalize_raw_listing(raw)
                 result = ingest_observation(db, observation)
+                score_listing(db, result.listing)
                 observed_source_record_ids.add(result.source_record.id)
                 record = db.get(RawListingRecord, record.id)
                 record.status = RawListingStatus.INGESTED

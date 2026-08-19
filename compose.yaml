@@ -13,9 +13,20 @@ x-app-environment: &app-environment
   RESTAURANT_REALTY_USER_AGENT: ${RESTAURANT_REALTY_USER_AGENT:-RestaurantScout/0.1}
   RESTAURANT_REALTY_TARGET_CITIES: ${RESTAURANT_REALTY_TARGET_CITIES:-San Mateo,San Carlos,Redwood City,Palo Alto,Mountain View,Sunnyvale}
   RESTAURANT_REALTY_TARGET_COUNTIES: ${RESTAURANT_REALTY_TARGET_COUNTIES:-San Mateo County,Santa Clara County}
+  RESTAURANT_FOR_SALES_ENABLED: ${RESTAURANT_FOR_SALES_ENABLED:-false}
+  RESTAURANT_FOR_SALES_SITE_URL: ${RESTAURANT_FOR_SALES_SITE_URL:-https://restaurantforsales.com}
+  RESTAURANT_FOR_SALES_TIMEOUT_SECONDS: ${RESTAURANT_FOR_SALES_TIMEOUT_SECONDS:-20}
+  RESTAURANT_FOR_SALES_REQUEST_DELAY_SECONDS: ${RESTAURANT_FOR_SALES_REQUEST_DELAY_SECONDS:-0.5}
+  RESTAURANT_FOR_SALES_USER_AGENT: ${RESTAURANT_FOR_SALES_USER_AGENT:-RestaurantScout/0.1}
   REMOVAL_MISSING_SCAN_THRESHOLD: ${REMOVAL_MISSING_SCAN_THRESHOLD:-2}
   SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-86400}
   SCHEDULER_INITIAL_DELAY_SECONDS: ${SCHEDULER_INITIAL_DELAY_SECONDS:-60}
+  MAX_PREFERRED_RENT: ${MAX_PREFERRED_RENT:-8000}
+  MAX_PREFERRED_ASKING_PRICE: ${MAX_PREFERRED_ASKING_PRICE:-300000}
+  MIN_PREFERRED_SQFT: ${MIN_PREFERRED_SQFT:-1200}
+  MAX_PREFERRED_SQFT: ${MAX_PREFERRED_SQFT:-2500}
+  CORPORATE_SCORE_WEIGHT: ${CORPORATE_SCORE_WEIGHT:-0.60}
+  RESTAURANT_SCORE_WEIGHT: ${RESTAURANT_SCORE_WEIGHT:-0.40}
 
 services:
   db:
@@ -46,6 +57,16 @@ services:
         condition: service_healthy
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
+    depends_on:
+      - api
+
   scheduler:
     profiles: ["scheduler"]
     build:
@@ -53,9 +74,9 @@ services:
     environment:
       <<: *app-environment
     depends_on:
-      db:
-        condition: service_healthy
-    command: ["sh", "-c", "alembic upgrade head && python -m app.jobs.scheduler"]
+      api:
+        condition: service_started
+    command: ["python", "-m", "app.jobs.scheduler"]
     restart: unless-stopped
 
   test:

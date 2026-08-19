@@ -21,6 +21,8 @@ def find_listings(
     max_monthly_rent: Decimal | None,
     min_size_sqft: int | None,
     max_size_sqft: int | None,
+    min_overall_score: Decimal | None,
+    sort_by: str,
     offset: int,
     limit: int,
 ) -> list[Listing]:
@@ -34,6 +36,8 @@ def find_listings(
         max_monthly_rent=max_monthly_rent,
         min_size_sqft=min_size_sqft,
         max_size_sqft=max_size_sqft,
+        min_overall_score=min_overall_score,
+        sort_by=sort_by,
         offset=offset,
         limit=limit,
     )

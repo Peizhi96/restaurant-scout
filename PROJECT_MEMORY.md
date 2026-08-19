@@ -8,7 +8,7 @@ This file is the durable project baseline distilled from the RPD. It records pro
 
 As confirmed on 2026-08-18, active development is focused on **V1 only**. V2 geospatial work remains documented for future direction but is deferred and must not expand the current implementation scope.
 
-Implementation status as of 2026-08-19: Phase 0 foundation, the shared Phase 1 ingestion infrastructure, and Phase 2 deduplication/tracking are implemented. `RestaurantRealtyCollector` has completed two controlled live scans into PostgreSQL, producing two canonical Palo Alto listings with two snapshots each, no item failures, no duplicate listings, and no false change events. A Docker-hosted independent daily scheduler is running locally with its next scan scheduled after 86,400 seconds. Consecutive-scan removal reconciliation is implemented. Additional source coverage is still in progress. A protected backend workflow for NDA handoff and received financial metrics is implemented; its frontend, user-level authorization, and document storage are not. Phase 3 intelligence and Phase 4 dashboard/alerts have not started.
+Implementation status as of 2026-08-19: Phase 0 foundation, two live Phase 1 feeds, Phase 2 deduplication/tracking, deterministic Phase 3 scoring, and the dashboard portion of Phase 4 are implemented. `RestaurantRealtyCollector` continues to produce two canonical Palo Alto listings. A new `RestaurantForSalesCollector` completed controlled live scans and produces three additional valid P0 food-service listings after strict target-city and non-food filtering. PostgreSQL currently contains five canonical listings and five score records. The responsive Next.js dashboard is running locally on port 3001. AI explanations and email alerts remain unimplemented. The protected backend workflow for NDA handoff and received financial metrics is implemented; its frontend integration, user-level authorization, and document storage are not.
 
 ### Implemented V1 foundation
 
@@ -23,17 +23,30 @@ Implementation status as of 2026-08-19: Phase 0 foundation, the shared Phase 1 i
 - An independent scheduler process runs `RestaurantRealtyCollector` daily without depending on Codex. The local Docker scheduler uses a configurable initial delay and interval and is currently enabled through the gitignored local `.env`.
 - Protected due-diligence APIs store official external NDA/request links or broker contact channels, access status, inventory/FF&E inclusion, period-specific financial metrics, verification state, actor identity, and immutable audit events. They are separated from public `RawListing` ingestion and require the internal API key; mutations additionally require `X-Operator-Id`.
 - Restaurant Realty collection is configurable for site/API URL, timeout, inter-request delay, User-Agent, target counties, and target cities. The default scope queries San Mateo and Santa Clara counties and only emits records whose public title or description explicitly identifies one of the six P0 cities. A county reference such as `San Mateo County` must not be interpreted as the city of San Mateo.
+- `RestaurantForSalesCollector` reads only its robots-allowed public list and detail pages. It never opens photo, contact, login, printable, or NDA routes. County matches only narrow detail requests; emission still requires an explicit P0 city and positive food-service classification. Explicit beauty salon, preschool, auto-body, dry-cleaning, liquor-store, and trading-card listings are rejected.
 - The Restaurant Realty parser currently extracts public title, description, asking price, monthly rent, square footage, seating, parking text, explicitly stated Type 1 hood presence/absence, property types, lease expiration/option, source ID/URL, and active market status. Values that are absent, confidential, composite, approximate, or not safely parseable remain unknown rather than being guessed.
+- Deterministic scoring stores Corporate Catering Score and Restaurant Score separately and calculates Overall Score only when both are available, using the configurable 60/40 default. Unknown inputs do not silently become zero; factor responses include evidence, missing fields, and weighted data completeness. Scoring thresholds, overall weights, and factor weights are configurable.
+- The Next.js dashboard implements `/dashboard`, `/listings`, and `/listings/:id`, with candidate ranking, inventory and price-change summaries, filters, economics, separate scores and factor detail, completeness/missing-information guardrails, snapshot/event history, source handoff, and operator status/notes updates. It intentionally contains no V2 map or geospatial features.
 
 ### Current validation and open boundary
 
-- The automated suite currently has 24 passing tests: API tests through FastAPI `TestClient`, service/database integration tests using isolated in-memory SQLite, collector/parser unit tests using mocked HTTP transport, and successful-scan removal/reappearance plus multi-source reconciliation coverage.
+- The automated suite currently has 33 passing tests: API tests through FastAPI `TestClient`, service/database integration tests using isolated in-memory SQLite, collector/parser unit tests using mocked HTTP transport, deterministic scoring tests, and successful-scan removal/reappearance plus multi-source reconciliation coverage.
 - The Restaurant Realty tests verify request scope and headers, response parsing, external-ID deduplication, explicit Type 1 negative handling, unknown preservation, P0 filtering, and prevention of County-to-City guessing.
 - The protected due-diligence tests verify API-key and operator attribution requirements, official-link/contact validation, access-state timestamps, the received-data gate for financial entry, metric/period rules, verification updates, and audit events.
 - The complete Alembic chain has been verified on a fresh SQLite database through upgrade to `20260819_0005`, downgrade to base, and re-upgrade to head. Real PostgreSQL is at `20260819_0005 (head)`, and `alembic check` reports no model/migration drift. Python compilation and Ruff pass.
 - Two controlled live Restaurant Realty scans completed against the public read-only endpoints. Each run collected and ingested two P0 records with zero failures. The second scan reused the two canonical listings, added one immutable snapshot per listing, and emitted no false change events.
-- The local Docker API, PostgreSQL, and independent scheduler containers are running. The scheduler reports an 86,400-second initial delay and then runs at the configurable daily interval.
-- Other planned collectors (`SearchCollector`, `BizBuySellCollector`, `LoopNetCollector`, and other broker sites), Phase 3 scoring/AI, Phase 4 Next.js/email, cloud deployment, and production monitoring remain unimplemented.
+- Controlled live RestaurantForSales scans completed against its public pages. The first scan exposed two non-food records embedded in the source's restaurant page; explicit food-service filtering was added, the two canonical false positives were removed while raw audit records were retained, and the verification scan completed with three valid records, zero item failures, no duplicate canonicals, and zero remaining salon false positives.
+- The local Docker API, PostgreSQL, independent scheduler, and Next.js frontend containers are running. The scheduler reports an 86,400-second initial delay and then runs every enabled collector at the configurable daily interval. API owns migrations at startup so API and scheduler cannot race to apply the same migration.
+- PostgreSQL is at `20260819_0006 (head)`, `alembic check` reports no model/migration drift, frontend lint and production build pass, and dashboard/listing/detail routes return successfully against real local data.
+- Other planned collectors (`SearchCollector`, `BizBuySellCollector`, `LoopNetCollector`, and other broker sites), AI explanations, email alerts, cloud deployment, and production monitoring remain unimplemented.
+
+### Repository and portfolio status
+
+- The project is intentionally published as a public job-search portfolio at `https://github.com/Peizhi96/restaurant-scout`.
+- The first code baseline is commit `9fb390f2d494673262750d229ad72e9c92c1cffb` on `main`, with message `feat: establish Restaurant Scout ingestion foundation`. Local `main` tracks `origin/main`, and the local and remote commit hashes were verified to match after the initial push.
+- The original public baseline commit contains 69 files and 5,944 lines through migration `20260819_0005`. The current `main` baseline now also includes the RestaurantForSales collector, deterministic scoring, migration `20260819_0006`, and the Next.js dashboard described above.
+- The gitignored local `.env`, PostgreSQL volume contents, collected database records, caches, and local runtime configuration are not part of the public repository. Future public commits must continue to exclude secrets, credentials, confidential due-diligence data, and local database contents.
+- Because the repository is a public portfolio, README, commit messages, architecture notes, tests, and operational instructions should remain clear and professional and should accurately distinguish implemented behavior from planned work.
 
 ## 1. Product identity and success criterion
 
@@ -297,7 +310,7 @@ Initial API surface:
 - `GET /api/listings/{id}` — listing details.
 - `PATCH /api/listings/{id}` — update status or notes.
 - `GET /api/listings/{id}/history` — price and status history.
-- `GET /api/listings/{id}/scores` — scoring detail.
+- `GET /api/listings/{id}/scores` — implemented deterministic scoring detail, evidence, missing information, and completeness.
 - `GET /api/alerts` — events and alerts.
 - `POST /api/jobs/scan` — protected manual scan trigger.
 - `GET /api/listings/{id}/due-diligence` — protected NDA status and financial summary.
@@ -340,10 +353,10 @@ The protected backend model and API are implemented through migration `20260819_
 ## 16. Delivery phases
 
 1. **Phase 0 — Foundation — implemented:** FastAPI, PostgreSQL, Listing model, basic API.
-2. **Phase 1 — Data Ingestion — first live feed operational, source coverage in progress:** shared Collector pipeline, raw persistence, run auditing, strict normalization, `ManualCollector`, two accepted live Restaurant Realty scans, daily scheduling, and consecutive-miss removal reconciliation. More sources remain.
+2. **Phase 1 — Data Ingestion — two live feeds operational, source coverage still extensible:** shared Collector pipeline, raw persistence, run auditing, strict normalization, `ManualCollector`, Restaurant Realty, RestaurantForSales, daily multi-source scheduling, and consecutive-miss removal reconciliation.
 3. **Phase 2 — Dedup & Tracking — implemented:** deduplication, snapshots, price/rent/status events, and possible-duplicate review.
-4. **Phase 3 — Intelligence — not started:** rules, Corporate/Restaurant scores, AI explanations.
-5. **Phase 4 — Dashboard & Alerts — not started:** Next.js, filters, Top Candidates, email.
+4. **Phase 3 — Intelligence — deterministic scoring implemented, AI pending:** configurable rules, separate Corporate/Restaurant scores, Overall score, factor evidence, completeness, and `/scores` API are implemented. AI explanations are not.
+5. **Phase 4 — Dashboard implemented, Alerts pending:** Next.js overview, filters, Top Candidates, listing detail, history, factor detail, and workflow updates are implemented. Email alerts are not.
 6. **Phase 5 — Geospatial — deferred to V2:** office locations, drive-time areas, maps, competition, and regional data.
 
 Development recommendation from the RPD: begin at Phase 0, implement one clear module at a time, and require tests plus a runnable result for every phase. Treat this as product delivery guidance, not as an instruction that overrides the user's current request.

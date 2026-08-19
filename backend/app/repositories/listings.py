@@ -5,6 +5,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from app.models.listing import Listing, ListingStatus
+from app.models.scoring import ListingScore
 
 
 def get_listing(db: Session, listing_id: uuid.UUID) -> Listing | None:
@@ -22,6 +23,8 @@ def list_listings(
     max_monthly_rent: Decimal | None = None,
     min_size_sqft: int | None = None,
     max_size_sqft: int | None = None,
+    min_overall_score: Decimal | None = None,
+    sort_by: str = "recent",
     offset: int = 0,
     limit: int = 50,
 ) -> list[Listing]:
@@ -43,12 +46,20 @@ def list_listings(
         statement = statement.where(Listing.size_sqft >= min_size_sqft)
     if max_size_sqft is not None:
         statement = statement.where(Listing.size_sqft <= max_size_sqft)
+    if min_overall_score is not None:
+        statement = statement.join(ListingScore).where(
+            ListingScore.overall_score >= min_overall_score
+        )
 
-    statement = (
-        statement.order_by(Listing.last_seen_at.desc(), Listing.id)
-        .offset(offset)
-        .limit(limit)
-    )
+    if sort_by == "score":
+        if min_overall_score is None:
+            statement = statement.outerjoin(ListingScore)
+        statement = statement.order_by(
+            ListingScore.overall_score.desc().nullslast(), Listing.last_seen_at.desc()
+        )
+    else:
+        statement = statement.order_by(Listing.last_seen_at.desc(), Listing.id)
+    statement = statement.offset(offset).limit(limit)
     return list(db.scalars(statement))
 
 

@@ -26,6 +26,8 @@ def list_listings(
     max_monthly_rent: Annotated[Decimal | None, Query(ge=0)] = None,
     min_size_sqft: Annotated[int | None, Query(ge=0)] = None,
     max_size_sqft: Annotated[int | None, Query(ge=0)] = None,
+    min_overall_score: Annotated[Decimal | None, Query(ge=0, le=100)] = None,
+    sort_by: Annotated[str, Query(pattern="^(recent|score)$")] = "recent",
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[ListingRead]:
@@ -39,6 +41,8 @@ def list_listings(
         max_monthly_rent=max_monthly_rent,
         min_size_sqft=min_size_sqft,
         max_size_sqft=max_size_sqft,
+        min_overall_score=min_overall_score,
+        sort_by=sort_by,
         offset=offset,
         limit=limit,
     )

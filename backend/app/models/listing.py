@@ -16,7 +16,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
@@ -112,3 +112,30 @@ class Listing(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    score = relationship(
+        "ListingScore",
+        back_populates="listing",
+        uselist=False,
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def corporate_catering_score(self) -> Decimal | None:
+        return self.score.corporate_catering_score if self.score else None
+
+    @property
+    def restaurant_score(self) -> Decimal | None:
+        return self.score.restaurant_score if self.score else None
+
+    @property
+    def overall_score(self) -> Decimal | None:
+        return self.score.overall_score if self.score else None
+
+    @property
+    def score_completeness(self) -> Decimal | None:
+        if self.score is None:
+            return None
+        return (
+            self.score.corporate_completeness + self.score.restaurant_completeness
+        ) / 2

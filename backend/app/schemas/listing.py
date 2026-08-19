@@ -42,6 +42,10 @@ class ListingRead(BaseModel):
     last_seen_at: datetime
     created_at: datetime
     updated_at: datetime
+    corporate_catering_score: Decimal | None = None
+    restaurant_score: Decimal | None = None
+    overall_score: Decimal | None = None
+    score_completeness: Decimal | None = None
 
 
 class ListingUpdate(BaseModel):

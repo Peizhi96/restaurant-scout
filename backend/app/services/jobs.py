@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.collectors.manual import ManualCollector
+from app.collectors.restaurant_for_sales import RestaurantForSalesCollector
 from app.collectors.restaurant_realty import RestaurantRealtyCollector
 from app.core.config import get_settings
 from app.models.ingestion import CollectionRun, RawListingRecord
@@ -50,6 +51,21 @@ def run_automated_scan(db: Session, request: AutomatedScanRequest) -> Collection
             timeout_seconds=settings.restaurant_realty_timeout_seconds,
             request_delay_seconds=settings.restaurant_realty_request_delay_seconds,
             user_agent=settings.restaurant_realty_user_agent,
+        )
+        return run_collector(db, collector)
+    if request.collector == AutomatedCollectorName.RESTAURANT_FOR_SALES:
+        if not settings.restaurant_for_sales_enabled:
+            raise CollectorDisabledError(
+                "RestaurantForSales collector is disabled; set "
+                "RESTAURANT_FOR_SALES_ENABLED=true to enable it"
+            )
+        collector = RestaurantForSalesCollector(
+            site_url=settings.restaurant_for_sales_site_url,
+            target_cities=settings.restaurant_realty_target_cities,
+            target_counties=settings.restaurant_realty_target_counties,
+            timeout_seconds=settings.restaurant_for_sales_timeout_seconds,
+            request_delay_seconds=settings.restaurant_for_sales_request_delay_seconds,
+            user_agent=settings.restaurant_for_sales_user_agent,
         )
         return run_collector(db, collector)
     raise ValueError(f"Unsupported collector: {request.collector}")

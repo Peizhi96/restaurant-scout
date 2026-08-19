@@ -2,7 +2,7 @@ import logging
 import time
 
 from app.core.config import get_settings
-from app.jobs.daily_scan import run_daily_scan
+from app.jobs.daily_scan import run_daily_scans
 from app.services.jobs import CollectorDisabledError
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def run_scheduler() -> None:
     while True:
         started_at = time.monotonic()
         try:
-            run_daily_scan()
+            run_daily_scans()
         except CollectorDisabledError as exc:
             logger.warning("Scheduled scan skipped: %s", exc)
         except Exception:

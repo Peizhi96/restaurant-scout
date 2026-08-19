@@ -2,7 +2,7 @@
 
 Restaurant Scout is a V1-focused internal platform for discovering, tracking, and evaluating Bay Area restaurant acquisition and corporate-catering opportunities.
 
-The current implementation includes **Phase 0 — Foundation**, the first operational **Phase 1 — Data Ingestion** feed, and **Phase 2 — Dedup & Tracking**. Manual ingestion and the public read-only Restaurant Realty collector both use the shared Collector interface. The Restaurant Realty feed has completed two controlled live PostgreSQL scans and can run daily through an independent scheduler container.
+The current implementation includes **Phase 0 — Foundation**, two operational **Phase 1 — Data Ingestion** feeds, **Phase 2 — Dedup & Tracking**, the deterministic portion of **Phase 3 — Intelligence**, and the V1 dashboard portion of **Phase 4**. Manual ingestion, Restaurant Realty, and RestaurantForSales all use the shared Collector interface and can run through the independent daily scheduler.
 
 - FastAPI application and health/readiness endpoints.
 - PostgreSQL persistence through SQLAlchemy 2.
@@ -15,9 +15,12 @@ The current implementation includes **Phase 0 — Foundation**, the first operat
 - Strict business-field normalization with per-item failure isolation.
 - `ManualCollector` and an API-key-protected manual import endpoint.
 - A live-validated `RestaurantRealtyCollector` and protected automated scan endpoint.
+- A live-validated `RestaurantForSalesCollector` using only public list/detail pages, with strict target-city and food-service filtering.
 - Daily scheduling independent of Codex.
 - Two-consecutive-miss removal reconciliation with source and listing audit counts.
 - A protected NDA/broker handoff and financial due-diligence backend, including access state, period-specific metrics, inventory/FF&E inclusion, verification status, and audit events.
+- Configurable deterministic Corporate Catering, Restaurant, and 60/40 Overall scores, including factor evidence, missing information, and data completeness.
+- A responsive Next.js dashboard with overview, filters, listing detail, score factors, history, events, and operator status/notes.
 
 See `PROJECT_MEMORY.md` for the durable product and architecture baseline.
 
@@ -28,6 +31,7 @@ docker compose up --build
 ```
 
 The API is available at `http://localhost:8000`, with OpenAPI documentation at `http://localhost:8000/docs`.
+The dashboard is available at `http://localhost:3001/dashboard`. Port 3001 is the local default and can be changed with `FRONTEND_PORT`.
 
 ## Run tests locally
 
@@ -57,6 +61,10 @@ The default interval is 86,400 seconds. A listing source must be absent from two
 consecutive successful complete scans before it is treated as removed. A canonical
 listing remains available while any other source still reports it as active or unknown.
 
+Set `RESTAURANT_FOR_SALES_ENABLED=true` to include the public RestaurantForSales feed.
+The collector does not open photo, contact, login, or NDA routes. Each enabled source is
+reconciled independently.
+
 ## Current API
 
 - `GET /healthz`
@@ -66,6 +74,7 @@ listing remains available while any other source still reports it as active or u
 - `PATCH /api/listings/{id}`
 - `GET /api/listings/{id}/history`
 - `GET /api/listings/{id}/events`
+- `GET /api/listings/{id}/scores`
 - `GET /api/possible-duplicates`
 - `PATCH /api/possible-duplicates/{id}`
 - `POST /api/jobs/manual`
