@@ -11,8 +11,11 @@ from app.models.due_diligence import (
 )
 from app.models.external_lead import (
     ExternalLead,
+    ExternalLeadDiscoveryMethod,
     ExternalLeadSource,
     ExternalLeadStatus,
+    ExternalLeadSyncRun,
+    ExternalLeadSyncStatus,
 )
 from app.models.ingestion import (
     CollectionRun,
@@ -51,8 +54,11 @@ __all__ = [
     "DuplicateReviewStatus",
     "EventType",
     "ExternalLead",
+    "ExternalLeadDiscoveryMethod",
     "ExternalLeadSource",
     "ExternalLeadStatus",
+    "ExternalLeadSyncRun",
+    "ExternalLeadSyncStatus",
     "EmailNotification",
     "FinancialMetric",
     "FinancialMetricType",

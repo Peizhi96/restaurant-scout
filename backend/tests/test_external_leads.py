@@ -1,5 +1,7 @@
 import os
 import unittest
+from dataclasses import replace
+from email.message import EmailMessage
 
 os.environ["DATABASE_URL"] = "sqlite+pysqlite://"
 os.environ["INTERNAL_API_KEY"] = "test-internal-key"
@@ -7,9 +9,57 @@ os.environ["INTERNAL_API_KEY"] = "test-internal-key"
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.main import app
-from app.models import Base, ExternalLead
+from app.models import Base, ExternalLead, ExternalLeadDiscoveryMethod
+from app.services.bizbuysell_email_alerts import extract_email_alert, sync_email_alerts
+
+
+def alert_message(*, sender: str, html: str, subject: str = "New restaurant") -> bytes:
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = "scout@example.com"
+    message["Subject"] = subject
+    message.set_content("Open the HTML version to review this alert.")
+    message.add_alternative(html, subtype="html")
+    return message.as_bytes()
+
+
+class FakeMailbox:
+    messages: dict[bytes, bytes] = {}
+    seen: list[bytes] = []
+
+    def __init__(self, host: str, port: int, *, timeout: int) -> None:
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+
+    def __enter__(self) -> "FakeMailbox":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def login(self, username: str, password: str) -> tuple[str, list[bytes]]:
+        return "OK", [b"logged in"]
+
+    def select(self, mailbox: str, readonly: bool = False) -> tuple[str, list[bytes]]:
+        return "OK", [str(len(self.messages)).encode()]
+
+    def uid(self, command: str, *args: object) -> tuple[str, list[object]]:
+        if command == "search":
+            return "OK", [b" ".join(self.messages)]
+        if command == "fetch":
+            message_id = args[0]
+            assert isinstance(message_id, bytes)
+            return "OK", [(b"RFC822", self.messages[message_id])]
+        if command == "store":
+            message_id = args[0]
+            assert isinstance(message_id, bytes)
+            self.seen.append(message_id)
+            return "OK", [b"stored"]
+        raise AssertionError(f"Unexpected IMAP command: {command}")
 
 
 class ExternalLeadApiTestCase(unittest.TestCase):
@@ -40,6 +90,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
         self.assertEqual(lead["source"], "BIZBUYSELL")
         self.assertEqual(lead["city"], "San Mateo")
         self.assertEqual(lead["status"], "NEW")
+        self.assertEqual(lead["discovery_method"], "MANUAL")
         self.assertEqual(
             lead["source_url"],
             "https://www.bizbuysell.com/Business-Opportunity/cafe/123",
@@ -151,6 +202,104 @@ class ExternalLeadApiTestCase(unittest.TestCase):
             headers=self.auth,
         )
         self.assertEqual(empty.status_code, 422)
+
+    def test_email_parser_accepts_only_allowed_sender_and_listing_urls(self) -> None:
+        message = alert_message(
+            sender="BizBuySell Alerts <daily@notify.bizbuysell.com>",
+            subject="New restaurants in San Mateo",
+            html=(
+                '<a href="https://www.bizbuysell.com/Business-Opportunity/cafe/123/'
+                '?utm_source=email">Open listing</a>'
+                '<a href="https://tracker.example/click?url=https%3A%2F%2Fwww.bizbuysell.com'
+                '%2Fbusiness-asset%2Fturnkey-shop%2F456%2F">Tracked listing</a>'
+                '<a href="https://www.bizbuysell.com/california/restaurants-for-sale/">'
+                "Category page</a>"
+            ),
+        )
+        extraction = extract_email_alert(
+            message,
+            allowed_sender_domains=("bizbuysell.com",),
+            target_cities=("San Mateo", "San Carlos"),
+        )
+        assert extraction is not None
+        self.assertEqual(extraction.city, "San Mateo")
+        self.assertEqual(
+            extraction.urls,
+            (
+                "https://www.bizbuysell.com/Business-Opportunity/cafe/123",
+                "https://www.bizbuysell.com/business-asset/turnkey-shop/456",
+            ),
+        )
+
+        rejected = extract_email_alert(
+            alert_message(
+                sender="Fake Alerts <daily@bizbuysell.com.evil.example>",
+                html='<a href="https://www.bizbuysell.com/business-opportunity/x/1/">x</a>',
+            ),
+            allowed_sender_domains=("bizbuysell.com",),
+            target_cities=("San Mateo",),
+        )
+        self.assertIsNone(rejected)
+
+    def test_imap_sync_creates_deduplicated_email_alert_leads_and_audit(self) -> None:
+        FakeMailbox.messages = {
+            b"1": alert_message(
+                sender="alerts@bizbuysell.com",
+                subject="Palo Alto restaurant matches",
+                html=(
+                    '<a href="https://www.bizbuysell.com/business-opportunity/a/101/">'
+                    "Listing A</a>"
+                ),
+            ),
+            b"2": alert_message(
+                sender="alerts@other.example",
+                html=(
+                    '<a href="https://www.bizbuysell.com/business-opportunity/b/202/">'
+                    "Untrusted</a>"
+                ),
+            ),
+        }
+        FakeMailbox.seen = []
+        settings = replace(
+            get_settings(),
+            bizbuysell_email_alerts_enabled=True,
+            bizbuysell_imap_host="imap.example.com",
+            bizbuysell_imap_username="scout@example.com",
+            bizbuysell_imap_password="test-only",
+            bizbuysell_email_allowed_sender_domains=("bizbuysell.com",),
+        )
+        with SessionLocal() as db:
+            first = sync_email_alerts(
+                db, settings=settings, mailbox_factory=FakeMailbox
+            )
+            second = sync_email_alerts(
+                db, settings=settings, mailbox_factory=FakeMailbox
+            )
+
+            leads = list(db.scalars(select(ExternalLead)))
+            self.assertEqual(len(leads), 1)
+            self.assertEqual(leads[0].city, "Palo Alto")
+            self.assertEqual(
+                leads[0].discovery_method,
+                ExternalLeadDiscoveryMethod.EMAIL_ALERT,
+            )
+            self.assertEqual(first.messages_scanned, 1)
+            self.assertEqual(first.links_found, 1)
+            self.assertEqual(first.leads_created, 1)
+            self.assertEqual(second.leads_existing, 1)
+            self.assertEqual(FakeMailbox.seen, [b"1", b"1"])
+
+    def test_email_sync_status_endpoint_is_protected(self) -> None:
+        unauthorized = self.client.get(
+            "/api/external-leads/bizbuysell-email/status"
+        )
+        self.assertEqual(unauthorized.status_code, 401)
+        status_response = self.client.get(
+            "/api/external-leads/bizbuysell-email/status", headers=self.auth
+        )
+        self.assertEqual(status_response.status_code, 200)
+        self.assertFalse(status_response.json()["enabled"])
+        self.assertIsNone(status_response.json()["latest_run"])
 
 
 if __name__ == "__main__":

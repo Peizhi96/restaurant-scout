@@ -30,6 +30,8 @@ _TYPE_BOUND_ENUM_CHECKS = {
     "source_market_status",
     "external_lead_source",
     "external_lead_status",
+    "external_lead_discovery_method",
+    "external_lead_sync_status",
     "ai_recommendation",
     "notification_priority",
     "notification_status",

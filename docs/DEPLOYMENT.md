@@ -44,6 +44,8 @@ Copy the example to `.env.production`, restrict it to the service account, and r
 every placeholder. Generate separate long random values for the PostgreSQL password,
 `INTERNAL_API_KEY`, and `APP_AUTH_PASSWORD`. URL-encode the database password inside
 `DATABASE_URL`. Enable AI or email only after their required secrets are present.
+If BizBuySell saved-search ingestion is enabled, use a dedicated IMAP mailbox or folder
+and a provider-specific app password; never reuse the operator's primary email password.
 
 ```bash
 chmod 600 deploy/.env.production

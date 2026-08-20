@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-const links = [
+const workspaceLinks = [
   { href: "/dashboard", label: "Overview", mark: "O" },
   { href: "/listings", label: "All listings", mark: "L" },
-  { href: "/external-leads", label: "External leads", mark: "E" },
+  { href: "/external-leads", label: "Marketplace links", mark: "M" },
 ];
 
 export function Sidebar() {
@@ -18,7 +18,7 @@ export function Sidebar() {
       </Link>
       <nav aria-label="Primary navigation">
         <p className="nav-label">Workspace</p>
-        {links.map((link) => (
+        {workspaceLinks.map((link) => (
           <Link href={link.href} key={link.href} className="nav-link">
             <span className="nav-mark">{link.mark}</span>
             {link.label}

@@ -4,7 +4,12 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.external_lead import ExternalLead, ExternalLeadSource, ExternalLeadStatus
+from app.models.external_lead import (
+    ExternalLead,
+    ExternalLeadDiscoveryMethod,
+    ExternalLeadSource,
+    ExternalLeadStatus,
+)
 from app.repositories import external_leads as repository
 from app.schemas.external_lead import ExternalLeadCreate, ExternalLeadUpdate
 
@@ -36,6 +41,14 @@ def canonicalize_external_lead_url(
     path = parsed.path or "/"
     if path == "/":
         raise ExternalLeadUrlError("Enter an individual listing URL, not a homepage")
+    normalized_path = path.casefold().rstrip("/")
+    if source == ExternalLeadSource.BIZBUYSELL and not (
+        normalized_path.startswith("/business-opportunity/")
+        or normalized_path.startswith("/business-asset/")
+    ):
+        raise ExternalLeadUrlError("Enter an individual BizBuySell listing URL")
+    if source == ExternalLeadSource.LOOPNET and not normalized_path.startswith("/listing/"):
+        raise ExternalLeadUrlError("Enter an individual LoopNet listing URL")
     filtered_query = [
         (key, item)
         for key, item in parse_qsl(parsed.query, keep_blank_values=True)
@@ -90,18 +103,37 @@ def find_external_lead(db: Session, lead_id: uuid.UUID) -> ExternalLead | None:
 
 
 def add_external_lead(db: Session, request: ExternalLeadCreate) -> ExternalLead:
-    source_url, canonical_url, source = canonicalize_external_lead_url(request.source_url)
+    lead, _ = add_external_lead_url(
+        db,
+        source_url=request.source_url,
+        city=request.city,
+        notes=request.notes,
+        discovery_method=ExternalLeadDiscoveryMethod.MANUAL,
+    )
+    return lead
+
+
+def add_external_lead_url(
+    db: Session,
+    *,
+    source_url: str,
+    city: str | None,
+    notes: str | None,
+    discovery_method: ExternalLeadDiscoveryMethod,
+) -> tuple[ExternalLead, bool]:
+    source_url, canonical_url, source = canonicalize_external_lead_url(source_url)
     existing = repository.get_by_canonical_url(db, canonical_url)
     if existing is not None:
-        return existing
+        return existing, False
     lead = ExternalLead(
         source=source,
         source_url=source_url,
         canonical_url=canonical_url,
-        city=_target_city(request.city),
-        notes=request.notes.strip() if request.notes and request.notes.strip() else None,
+        city=_target_city(city),
+        notes=notes.strip() if notes and notes.strip() else None,
+        discovery_method=discovery_method,
     )
-    return repository.create_external_lead(db, lead)
+    return repository.create_external_lead(db, lead), True
 
 
 def apply_external_lead_update(

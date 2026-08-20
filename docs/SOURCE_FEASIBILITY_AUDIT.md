@@ -40,8 +40,16 @@ Official sources reviewed:
 Decision: do not crawl search or detail pages. `BizBuySellCollector` accepts only an
 explicitly configured JSON feed or export obtained under separate authorization.
 Until that authorization exists, BizBuySell opportunities may be saved only as
-link-only `ExternalLead` records for operator review. Restaurant Scout does not open
-the source page or copy its listing facts.
+link-only `ExternalLead` records for operator review. The approved automated discovery
+path consumes individual listing hyperlinks delivered through BizBuySell's official
+Save Search email notifications; it does not request the public search or detail pages,
+and it stores neither the email body nor listing facts. Manual missed-link entry remains
+a secondary fallback.
+
+BizBuySell's current Terms permit ordinary-course hyperlinks to listings while still
+prohibiting automated or manual extraction tools that monitor or copy the Product.
+Therefore the email integration may persist the hyperlinks sent to the operator, but it
+must not treat the email as permission to fetch, parse, or reproduce the linked page.
 
 ## LoopNet findings
 

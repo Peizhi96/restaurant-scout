@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createExternalLead, updateExternalLead } from "@/lib/api";
+import {
+  createExternalLead,
+  syncBizBuySellEmailLinks,
+  updateExternalLead,
+} from "@/lib/api";
 import { requireAuthenticatedOperator } from "@/lib/auth";
 
 function optional(value: FormDataEntryValue | null): string | null {
@@ -48,4 +52,19 @@ export async function saveExternalLead(formData: FormData) {
   if (error) redirect(`/external-leads?error=${encodeURIComponent(error)}`);
   revalidatePath("/external-leads");
   redirect("/external-leads?saved=1");
+}
+
+export async function syncBizBuySellLinks() {
+  await requireAuthenticatedOperator();
+  let error: string | null = null;
+  let created = 0;
+  try {
+    const run = await syncBizBuySellEmailLinks();
+    created = run.leads_created;
+  } catch (caught) {
+    error = errorMessage(caught);
+  }
+  if (error) redirect(`/external-leads?error=${encodeURIComponent(error)}`);
+  revalidatePath("/external-leads");
+  redirect(`/external-leads?synced=1&created=${created}`);
 }

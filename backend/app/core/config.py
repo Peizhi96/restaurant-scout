@@ -200,6 +200,40 @@ class Settings:
             "BIZBUYSELL_USER_AGENT", "RestaurantScout/0.1"
         )
     )
+    bizbuysell_email_alerts_enabled: bool = field(
+        default_factory=lambda: _env_bool("BIZBUYSELL_EMAIL_ALERTS_ENABLED")
+    )
+    bizbuysell_imap_host: str | None = field(
+        default_factory=lambda: _env_optional("BIZBUYSELL_IMAP_HOST")
+    )
+    bizbuysell_imap_port: int = field(
+        default_factory=lambda: _env_int("BIZBUYSELL_IMAP_PORT", 993, minimum=1)
+    )
+    bizbuysell_imap_username: str | None = field(
+        default_factory=lambda: _env_optional("BIZBUYSELL_IMAP_USERNAME")
+    )
+    bizbuysell_imap_password: str | None = field(
+        default_factory=lambda: _env_optional("BIZBUYSELL_IMAP_PASSWORD")
+    )
+    bizbuysell_imap_mailbox: str = field(
+        default_factory=lambda: os.getenv("BIZBUYSELL_IMAP_MAILBOX", "INBOX").strip()
+        or "INBOX"
+    )
+    bizbuysell_email_allowed_sender_domains: tuple[str, ...] = field(
+        default_factory=lambda: _env_csv(
+            "BIZBUYSELL_EMAIL_ALLOWED_SENDER_DOMAINS", ("bizbuysell.com",)
+        )
+    )
+    bizbuysell_email_sync_max_messages: int = field(
+        default_factory=lambda: _env_int(
+            "BIZBUYSELL_EMAIL_SYNC_MAX_MESSAGES", 50, minimum=1
+        )
+    )
+    bizbuysell_email_max_bytes: int = field(
+        default_factory=lambda: _env_int(
+            "BIZBUYSELL_EMAIL_MAX_BYTES", 2_000_000, minimum=10_000
+        )
+    )
     loopnet_enabled: bool = field(
         default_factory=lambda: _env_bool("LOOPNET_ENABLED")
     )
@@ -308,4 +342,16 @@ def validate_production_settings(settings: Settings) -> None:
     ):
         raise RuntimeError(
             "ALERT_RECIPIENT, ALERT_FROM_EMAIL, and SMTP_HOST are required when EMAIL_ENABLED=true"
+        )
+    if settings.bizbuysell_email_alerts_enabled and not all(
+        (
+            settings.bizbuysell_imap_host,
+            settings.bizbuysell_imap_username,
+            settings.bizbuysell_imap_password,
+            settings.bizbuysell_email_allowed_sender_domains,
+        )
+    ):
+        raise RuntimeError(
+            "BizBuySell email alerts require IMAP host, username, password, "
+            "and allowed sender domains"
         )

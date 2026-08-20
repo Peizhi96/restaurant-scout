@@ -87,6 +87,7 @@ export interface EnrichedListing extends Listing {
 
 export type ExternalLeadSource = "BIZBUYSELL" | "LOOPNET";
 export type ExternalLeadStatus = "NEW" | "REVIEWING" | "CONTACT_BROKER" | "PASSED";
+export type ExternalLeadDiscoveryMethod = "MANUAL" | "EMAIL_ALERT";
 
 export interface ExternalLead {
   id: string;
@@ -95,9 +96,29 @@ export interface ExternalLead {
   city: string | null;
   status: ExternalLeadStatus;
   notes: string | null;
+  discovery_method: ExternalLeadDiscoveryMethod;
   discovered_at: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ExternalLeadSyncRun {
+  id: string;
+  source: ExternalLeadSource;
+  status: "RUNNING" | "SUCCEEDED" | "FAILED";
+  messages_scanned: number;
+  links_found: number;
+  leads_created: number;
+  leads_existing: number;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface BizBuySellEmailSyncStatus {
+  enabled: boolean;
+  configured: boolean;
+  latest_run: ExternalLeadSyncRun | null;
 }
 
 export type AIRecommendation = "STRONG_CANDIDATE" | "REVIEW" | "PASS" | "INSUFFICIENT_DATA";

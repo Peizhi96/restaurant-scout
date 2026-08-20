@@ -5,12 +5,13 @@ import { ListingTable } from "@/components/listing-table";
 import { ScoreRing } from "@/components/score-ring";
 import { asNumber, compactMoney, dateLabel } from "@/lib/format";
 import { enrichListings, getEvents, getListings } from "@/lib/api";
+import { candidateMinimumCompleteness } from "@/lib/ranking";
 import type { EnrichedListing, ListingEvent } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 async function loadDashboard() {
-  const listings = await enrichListings(await getListings("limit=100&sort_by=score"));
+  const listings = await enrichListings(await getListings("limit=100&sort_by=recent"));
   const events = await Promise.all(
     listings.map(async (listing) => {
       try {
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
   }
 
   const active = listings.filter((item) => item.market_status === "ACTIVE");
+  const minimumCompleteness = candidateMinimumCompleteness();
   const top = [...active]
     .filter((item) => {
       if (asNumber(item.overall_score) === null || item.scoreDetail === null) return false;
@@ -42,10 +44,16 @@ export default async function DashboardPage() {
         (Number(item.scoreDetail.corporate_completeness) +
           Number(item.scoreDetail.restaurant_completeness)) /
         2;
-      return completeness >= 40;
+      return completeness >= minimumCompleteness;
     })
     .sort((a, b) => (asNumber(b.overall_score) ?? 0) - (asNumber(a.overall_score) ?? 0))
     .slice(0, 3);
+  const recentInventory = [...listings]
+    .sort(
+      (a, b) =>
+        new Date(b.first_seen_at).getTime() - new Date(a.first_seen_at).getTime(),
+    )
+    .slice(0, 5);
   const recent = listings.filter((item) => loadedAt - new Date(item.first_seen_at).getTime() < 86_400_000);
   const priceDrops = events.filter((event) => event.event_type === "PRICE_DROP").slice(0, 5);
   const average = top.length
@@ -69,14 +77,14 @@ export default async function DashboardPage() {
       </section>
 
       <section className="section-block">
-        <div className="section-heading"><div><p className="eyebrow">Priority queue</p><h2>Top candidates</h2></div><p>Ranked by the 60/40 catering and restaurant blend. Completeness remains visible on each detail page.</p></div>
+        <div className="section-heading"><div><p className="eyebrow">Priority queue</p><h2>Qualified candidates</h2></div><p>Active listings with at least {minimumCompleteness}% of scoring inputs known, ranked by the 60/40 catering and restaurant blend. Preliminary scores stay in inventory until more facts are verified.</p></div>
         {top.length ? <div className="candidate-grid">{top.map((listing, index) => <ListingCard listing={listing} rank={index + 1} key={listing.id} />)}</div> : <div className="empty-state"><strong>No scored active candidates yet</strong><p>A score is calculated when a listing is ingested or opened.</p></div>}
       </section>
 
       <section className="split-grid section-block">
         <div className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">Latest inventory</p><h2>Recently discovered</h2></div><Link href="/listings">View all →</Link></div>
-          <ListingTable listings={listings.slice(0, 5)} />
+          <div className="panel-heading"><div><p className="eyebrow">Latest inventory · newest first</p><h2>Recently discovered</h2></div><Link href="/listings">View all →</Link></div>
+          <ListingTable listings={recentInventory} dateMode="discovered" />
         </div>
         <aside className="panel change-panel">
           <div className="panel-heading"><div><p className="eyebrow">Signal, not noise</p><h2>Price movement</h2></div></div>

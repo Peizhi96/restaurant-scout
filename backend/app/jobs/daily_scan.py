@@ -4,6 +4,7 @@ from app.core.database import SessionLocal
 from app.models.ingestion import CollectionRun
 from app.schemas.ingestion import AutomatedCollectorName, AutomatedScanRequest
 from app.services import jobs as job_service
+from app.services.bizbuysell_email_alerts import sync_email_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,24 @@ def run_daily_scans() -> list[CollectionRun]:
         enabled.append(AutomatedCollectorName.BIZBUYSELL)
     if settings.loopnet_enabled:
         enabled.append(AutomatedCollectorName.LOOPNET)
-    if not enabled:
+    email_alerts_enabled = settings.bizbuysell_email_alerts_enabled
+    if not enabled and not email_alerts_enabled:
         raise job_service.CollectorDisabledError("No automated collectors are enabled")
-    return [run_daily_scan(name) for name in enabled]
+    runs = [run_daily_scan(name) for name in enabled]
+    if email_alerts_enabled:
+        with SessionLocal() as db:
+            sync_run = sync_email_alerts(db, settings=settings)
+            logger.info(
+                "BizBuySell email link sync %s finished: status=%s messages=%s "
+                "links=%s created=%s existing=%s",
+                sync_run.id,
+                sync_run.status.value,
+                sync_run.messages_scanned,
+                sync_run.links_found,
+                sync_run.leads_created,
+                sync_run.leads_existing,
+            )
+    return runs
 
 
 def main() -> None:

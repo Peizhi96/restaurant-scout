@@ -1,6 +1,8 @@
 import type {
   EnrichedListing,
   ExternalLead,
+  BizBuySellEmailSyncStatus,
+  ExternalLeadSyncRun,
   Listing,
   ListingEvent,
   ListingScore,
@@ -111,6 +113,22 @@ export async function updateListing(
 
 export async function getExternalLeads(query = ""): Promise<ExternalLead[]> {
   return request<ExternalLead[]>(`/api/external-leads${query ? `?${query}` : ""}`);
+}
+
+export async function getBizBuySellEmailSyncStatus(): Promise<BizBuySellEmailSyncStatus> {
+  return request<BizBuySellEmailSyncStatus>(
+    "/api/external-leads/bizbuysell-email/status",
+    undefined,
+    { protected: true },
+  );
+}
+
+export async function syncBizBuySellEmailLinks(): Promise<ExternalLeadSyncRun> {
+  return request<ExternalLeadSyncRun>(
+    "/api/external-leads/bizbuysell-email/sync",
+    { method: "POST" },
+    { protected: true },
+  );
 }
 
 export async function createExternalLead(payload: {

@@ -1,9 +1,16 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models.external_lead import ExternalLead, ExternalLeadSource, ExternalLeadStatus
+from app.models.external_lead import (
+    ExternalLead,
+    ExternalLeadSource,
+    ExternalLeadStatus,
+    ExternalLeadSyncRun,
+    ExternalLeadSyncStatus,
+)
 
 
 def list_external_leads(
@@ -62,3 +69,45 @@ def update_external_lead(
     db.commit()
     db.refresh(lead)
     return lead
+
+
+def create_sync_run(db: Session, run: ExternalLeadSyncRun) -> ExternalLeadSyncRun:
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def finish_sync_run(
+    db: Session,
+    run: ExternalLeadSyncRun,
+    *,
+    status: ExternalLeadSyncStatus,
+    messages_scanned: int,
+    links_found: int,
+    leads_created: int,
+    leads_existing: int,
+    error_message: str | None = None,
+) -> ExternalLeadSyncRun:
+    run.status = status
+    run.messages_scanned = messages_scanned
+    run.links_found = links_found
+    run.leads_created = leads_created
+    run.leads_existing = leads_existing
+    run.error_message = error_message
+    run.completed_at = datetime.now(UTC)
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def latest_sync_run(
+    db: Session, source: ExternalLeadSource
+) -> ExternalLeadSyncRun | None:
+    return db.scalar(
+        select(ExternalLeadSyncRun)
+        .where(ExternalLeadSyncRun.source == source)
+        .order_by(ExternalLeadSyncRun.started_at.desc(), ExternalLeadSyncRun.id.desc())
+        .limit(1)
+    )

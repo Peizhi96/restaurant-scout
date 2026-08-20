@@ -17,7 +17,7 @@ The current implementation covers the V1 pipeline from compliant collection thro
 - A live-validated `RestaurantRealtyCollector` and protected automated scan endpoint.
 - A live-validated `RestaurantForSalesCollector` using only public list/detail pages, with strict target-city and food-service filtering.
 - Permission-gated `BizBuySellCollector` and `LoopNetCollector` adapters for separately authorized JSON feeds or exports. Their public websites are not crawled.
-- A zero-cost, link-only external-lead queue for BizBuySell and LoopNet, with URL deduplication, source recognition, P0 city selection, internal status, and notes. External leads remain separate from copied listing facts, scoring, and source-history tracking.
+- A link-only marketplace feed that imports individual BizBuySell URLs from official saved-search email alerts over IMAP, with sender allowlisting, strict listing-path validation, URL deduplication, audit runs, and a secondary manual missed-link fallback. These links remain separate from copied listing facts, scoring, AI, and source-history tracking.
 - Daily scheduling independent of Codex.
 - Two-consecutive-miss removal reconciliation with source and listing audit counts.
 - A protected NDA/broker handoff and financial due-diligence backend and frontend, including access state, period-specific metrics, inventory/FF&E inclusion, verification status, and audit events.
@@ -37,12 +37,36 @@ docker compose up --build
 
 The API is available at `http://localhost:8000`, with OpenAPI documentation at `http://localhost:8000/docs`.
 The dashboard is available at `http://localhost:3001/dashboard`. Port 3001 is the local default and can be changed with `FRONTEND_PORT`.
-The link-only external-lead queue is available at `http://localhost:3001/external-leads`.
+The link-only marketplace feed is available at `http://localhost:3001/external-leads`.
 
 AI and email remain opt-in locally. Copy the relevant settings from `.env.example`, set
 `OPENAI_ENABLED=true` and/or `EMAIL_ENABLED=true`, and provide the required credentials.
 Secrets must stay in the gitignored `.env`; never commit API keys, SMTP passwords, or
 confidential due-diligence data.
+
+## Configure BizBuySell saved-search links
+
+Restaurant Scout never crawls BizBuySell search or detail pages. Instead, create a
+dedicated mailbox or folder, open the official San Mateo County and Santa Clara County
+restaurant searches linked from `/external-leads`, and enable BizBuySell's Save Search
+email notifications. Configure the mailbox in the gitignored `.env`:
+
+```bash
+BIZBUYSELL_EMAIL_ALERTS_ENABLED=true
+BIZBUYSELL_IMAP_HOST=imap.example.com
+BIZBUYSELL_IMAP_PORT=993
+BIZBUYSELL_IMAP_USERNAME=restaurant-scout@example.com
+BIZBUYSELL_IMAP_PASSWORD=use-a-provider-specific-app-password
+BIZBUYSELL_IMAP_MAILBOX=INBOX
+BIZBUYSELL_EMAIL_ALLOWED_SENDER_DOMAINS=bizbuysell.com
+```
+
+Use a dedicated mailbox or isolated folder rather than a personal inbox. The scheduler
+reads unseen messages from allowed sender domains, extracts only individual
+`/business-opportunity/` and `/business-asset/` links, stores no email body, and marks a
+valid alert as seen only after processing. Links can also be synced on demand from the
+Marketplace link feed. IMAP credentials remain server-side and are never exposed to the
+browser or stored in PostgreSQL.
 
 ## Run tests locally
 
@@ -83,6 +107,11 @@ express written permission. Restaurant Scout therefore supports only a separatel
 authorized JSON feed or export for these sources. Review
 `docs/SOURCE_FEASIBILITY_AUDIT.md` before configuration.
 
+The BizBuySell saved-search email integration is a separate link-only path: it stores
+only hyperlinks BizBuySell sends to the operator and never opens the source page. It
+does not enable BizBuySell as a canonical detail collector and does not require
+`BIZBUYSELL_ENABLED=true`.
+
 After obtaining appropriate permission and a compatible feed, configure the relevant
 `*_AUTHORIZED_FEED_URL`, optionally configure `*_AUTHORIZED_FEED_TOKEN`, then set both
 `*_DATA_LICENSE_CONFIRMED=true` and `*_ENABLED=true`. Keep `*_FEED_IS_COMPLETE=false`
@@ -115,6 +144,8 @@ unless every run is guaranteed to be a complete source snapshot.
 - `GET /api/external-leads`
 - `POST /api/external-leads`
 - `PATCH /api/external-leads/{id}`
+- `GET /api/external-leads/bizbuysell-email/status`
+- `POST /api/external-leads/bizbuysell-email/sync`
 
 Job endpoints, AI generation, listing mutations, and external-lead mutations require the `X-Internal-API-Key` header. Set `INTERNAL_API_KEY` to a unique secret of at least 32 characters before production deployment.
 

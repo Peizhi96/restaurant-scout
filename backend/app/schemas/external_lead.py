@@ -3,7 +3,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.external_lead import ExternalLeadSource, ExternalLeadStatus
+from app.models.external_lead import (
+    ExternalLeadDiscoveryMethod,
+    ExternalLeadSource,
+    ExternalLeadStatus,
+    ExternalLeadSyncStatus,
+)
 
 
 class ExternalLeadCreate(BaseModel):
@@ -35,6 +40,28 @@ class ExternalLeadRead(BaseModel):
     city: str | None
     status: ExternalLeadStatus
     notes: str | None
+    discovery_method: ExternalLeadDiscoveryMethod
     discovered_at: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class ExternalLeadSyncRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    source: ExternalLeadSource
+    status: ExternalLeadSyncStatus
+    messages_scanned: int
+    links_found: int
+    leads_created: int
+    leads_existing: int
+    error_message: str | None
+    started_at: datetime
+    completed_at: datetime | None
+
+
+class BizBuySellEmailSyncStatusRead(BaseModel):
+    enabled: bool
+    configured: bool
+    latest_run: ExternalLeadSyncRunRead | None
