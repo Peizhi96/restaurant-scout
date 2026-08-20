@@ -1,6 +1,14 @@
 from fastapi import APIRouter
 
-from app.api.routes import due_diligence, duplicates, health, jobs, listings, scoring
+from app.api.routes import (
+    due_diligence,
+    duplicates,
+    external_leads,
+    health,
+    jobs,
+    listings,
+    scoring,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -13,3 +21,8 @@ api_router.include_router(
 )
 api_router.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
 api_router.include_router(due_diligence.router, tags=["due-diligence"])
+api_router.include_router(
+    external_leads.router,
+    prefix="/api/external-leads",
+    tags=["external-leads"],
+)

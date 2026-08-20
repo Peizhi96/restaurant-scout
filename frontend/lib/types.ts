@@ -84,3 +84,18 @@ export interface ListingSnapshot {
 export interface EnrichedListing extends Listing {
   scoreDetail: ListingScore | null;
 }
+
+export type ExternalLeadSource = "BIZBUYSELL" | "LOOPNET";
+export type ExternalLeadStatus = "NEW" | "REVIEWING" | "CONTACT_BROKER" | "PASSED";
+
+export interface ExternalLead {
+  id: string;
+  source: ExternalLeadSource;
+  source_url: string;
+  city: string | null;
+  status: ExternalLeadStatus;
+  notes: string | null;
+  discovered_at: string;
+  created_at: string;
+  updated_at: string;
+}

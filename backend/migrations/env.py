@@ -28,6 +28,8 @@ _TYPE_BOUND_ENUM_CHECKS = {
     "financial_verification_status",
     "due_diligence_event_type",
     "source_market_status",
+    "external_lead_source",
+    "external_lead_status",
 }
 
 

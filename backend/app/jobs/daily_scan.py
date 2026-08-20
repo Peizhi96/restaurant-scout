@@ -32,6 +32,10 @@ def run_daily_scans() -> list[CollectionRun]:
         enabled.append(AutomatedCollectorName.RESTAURANT_REALTY)
     if settings.restaurant_for_sales_enabled:
         enabled.append(AutomatedCollectorName.RESTAURANT_FOR_SALES)
+    if settings.bizbuysell_enabled:
+        enabled.append(AutomatedCollectorName.BIZBUYSELL)
+    if settings.loopnet_enabled:
+        enabled.append(AutomatedCollectorName.LOOPNET)
     if not enabled:
         raise job_service.CollectorDisabledError("No automated collectors are enabled")
     return [run_daily_scan(name) for name in enabled]

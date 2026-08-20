@@ -2,6 +2,8 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.collectors.bizbuysell import BizBuySellCollector
+from app.collectors.loopnet import LoopNetCollector
 from app.collectors.manual import ManualCollector
 from app.collectors.restaurant_for_sales import RestaurantForSalesCollector
 from app.collectors.restaurant_realty import RestaurantRealtyCollector
@@ -19,6 +21,32 @@ from app.services.collection import run_collector
 
 class CollectorDisabledError(RuntimeError):
     pass
+
+
+def _require_authorized_feed(
+    *,
+    source_label: str,
+    enabled: bool,
+    license_confirmed: bool,
+    feed_url: str | None,
+) -> str:
+    env_prefix = source_label.upper()
+    if not enabled:
+        raise CollectorDisabledError(
+            f"{source_label} collector is disabled; set {env_prefix}_ENABLED=true "
+            "only after an authorized feed is configured"
+        )
+    if not license_confirmed:
+        raise CollectorDisabledError(
+            f"{source_label} collector requires written data permission; set "
+            f"{env_prefix}_DATA_LICENSE_CONFIRMED=true only after permission allows "
+            "automated access and database storage"
+        )
+    if feed_url is None:
+        raise CollectorDisabledError(
+            f"{source_label} collector requires {env_prefix}_AUTHORIZED_FEED_URL"
+        )
+    return feed_url
 
 
 def run_manual_ingestion(db: Session, request: ManualIngestionRequest) -> CollectionRun:
@@ -66,6 +94,38 @@ def run_automated_scan(db: Session, request: AutomatedScanRequest) -> Collection
             timeout_seconds=settings.restaurant_for_sales_timeout_seconds,
             request_delay_seconds=settings.restaurant_for_sales_request_delay_seconds,
             user_agent=settings.restaurant_for_sales_user_agent,
+        )
+        return run_collector(db, collector)
+    if request.collector == AutomatedCollectorName.BIZBUYSELL:
+        feed_url = _require_authorized_feed(
+            source_label="BIZBUYSELL",
+            enabled=settings.bizbuysell_enabled,
+            license_confirmed=settings.bizbuysell_data_license_confirmed,
+            feed_url=settings.bizbuysell_authorized_feed_url,
+        )
+        collector = BizBuySellCollector(
+            feed_url=feed_url,
+            target_cities=settings.restaurant_realty_target_cities,
+            feed_is_complete=settings.bizbuysell_feed_is_complete,
+            bearer_token=settings.bizbuysell_authorized_feed_token,
+            timeout_seconds=settings.bizbuysell_timeout_seconds,
+            user_agent=settings.bizbuysell_user_agent,
+        )
+        return run_collector(db, collector)
+    if request.collector == AutomatedCollectorName.LOOPNET:
+        feed_url = _require_authorized_feed(
+            source_label="LOOPNET",
+            enabled=settings.loopnet_enabled,
+            license_confirmed=settings.loopnet_data_license_confirmed,
+            feed_url=settings.loopnet_authorized_feed_url,
+        )
+        collector = LoopNetCollector(
+            feed_url=feed_url,
+            target_cities=settings.restaurant_realty_target_cities,
+            feed_is_complete=settings.loopnet_feed_is_complete,
+            bearer_token=settings.loopnet_authorized_feed_token,
+            timeout_seconds=settings.loopnet_timeout_seconds,
+            user_agent=settings.loopnet_user_agent,
         )
         return run_collector(db, collector)
     raise ValueError(f"Unsupported collector: {request.collector}")

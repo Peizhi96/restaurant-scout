@@ -166,6 +166,29 @@ class IngestionTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertIn("RESTAURANT_REALTY_ENABLED=true", response.json()["detail"])
 
+    def test_costar_collectors_require_explicit_data_permission(self) -> None:
+        for collector, prefix in (
+            ("bizbuysell", "bizbuysell"),
+            ("loopnet", "loopnet"),
+        ):
+            settings = SimpleNamespace(
+                **{
+                    f"{prefix}_enabled": True,
+                    f"{prefix}_data_license_confirmed": False,
+                    f"{prefix}_authorized_feed_url": None,
+                }
+            )
+            with self.subTest(collector=collector), patch(
+                "app.services.jobs.get_settings", return_value=settings
+            ):
+                response = self.client.post(
+                    "/api/jobs/scan",
+                    json={"collector": collector},
+                    headers=self.headers,
+                )
+            self.assertEqual(response.status_code, 503)
+            self.assertIn("written data permission", response.json()["detail"])
+
     def test_successful_scans_reconcile_removal_and_reappearance(self) -> None:
         raw = RawListing(
             source="reconciling-source",

@@ -9,6 +9,11 @@ from app.models.due_diligence import (
     FinancialVerificationStatus,
     ListingDueDiligence,
 )
+from app.models.external_lead import (
+    ExternalLead,
+    ExternalLeadSource,
+    ExternalLeadStatus,
+)
 from app.models.ingestion import (
     CollectionRun,
     CollectionRunStatus,
@@ -37,6 +42,9 @@ __all__ = [
     "DueDiligenceEventType",
     "DuplicateReviewStatus",
     "EventType",
+    "ExternalLead",
+    "ExternalLeadSource",
+    "ExternalLeadStatus",
     "FinancialMetric",
     "FinancialMetricType",
     "FinancialVerificationStatus",

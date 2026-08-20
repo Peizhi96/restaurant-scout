@@ -30,6 +30,8 @@ class ManualIngestionRequest(BaseModel):
 class AutomatedCollectorName(str, Enum):
     RESTAURANT_REALTY = "restaurant_realty"
     RESTAURANT_FOR_SALES = "restaurant_for_sales"
+    BIZBUYSELL = "bizbuysell"
+    LOOPNET = "loopnet"
 
 
 class AutomatedScanRequest(BaseModel):

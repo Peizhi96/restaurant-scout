@@ -1,5 +1,6 @@
 import type {
   EnrichedListing,
+  ExternalLead,
   Listing,
   ListingEvent,
   ListingScore,
@@ -15,7 +16,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!response.ok) {
-    throw new Error(`Restaurant Scout API returned ${response.status} for ${path}`);
+    let detail = `Restaurant Scout API returned ${response.status}`;
+    try {
+      const payload = (await response.json()) as { detail?: unknown };
+      if (typeof payload.detail === "string") detail = payload.detail;
+    } catch {
+      // Keep the status-based fallback when the API did not return JSON.
+    }
+    throw new Error(detail);
   }
   return response.json() as Promise<T>;
 }
@@ -64,6 +72,31 @@ export async function updateListing(
   payload: { status?: string; notes?: string | null },
 ): Promise<Listing> {
   return request<Listing>(`/api/listings/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getExternalLeads(query = ""): Promise<ExternalLead[]> {
+  return request<ExternalLead[]>(`/api/external-leads${query ? `?${query}` : ""}`);
+}
+
+export async function createExternalLead(payload: {
+  source_url: string;
+  city?: string | null;
+  notes?: string | null;
+}): Promise<ExternalLead> {
+  return request<ExternalLead>("/api/external-leads", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateExternalLead(
+  id: string,
+  payload: { city?: string | null; status?: string; notes?: string | null },
+): Promise<ExternalLead> {
+  return request<ExternalLead>(`/api/external-leads/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

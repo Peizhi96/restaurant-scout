@@ -18,6 +18,13 @@ def _env_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
+def _env_optional(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    return value.strip()
+
+
 def _env_float_map(name: str, default: dict[str, float]) -> dict[str, float]:
     value = os.getenv(name)
     if value is None:
@@ -121,6 +128,50 @@ class Settings:
         default_factory=lambda: os.getenv(
             "RESTAURANT_FOR_SALES_USER_AGENT", "RestaurantScout/0.1"
         )
+    )
+    bizbuysell_enabled: bool = field(
+        default_factory=lambda: _env_bool("BIZBUYSELL_ENABLED")
+    )
+    bizbuysell_data_license_confirmed: bool = field(
+        default_factory=lambda: _env_bool("BIZBUYSELL_DATA_LICENSE_CONFIRMED")
+    )
+    bizbuysell_authorized_feed_url: str | None = field(
+        default_factory=lambda: _env_optional("BIZBUYSELL_AUTHORIZED_FEED_URL")
+    )
+    bizbuysell_authorized_feed_token: str | None = field(
+        default_factory=lambda: _env_optional("BIZBUYSELL_AUTHORIZED_FEED_TOKEN")
+    )
+    bizbuysell_feed_is_complete: bool = field(
+        default_factory=lambda: _env_bool("BIZBUYSELL_FEED_IS_COMPLETE")
+    )
+    bizbuysell_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("BIZBUYSELL_TIMEOUT_SECONDS", "20"))
+    )
+    bizbuysell_user_agent: str = field(
+        default_factory=lambda: os.getenv(
+            "BIZBUYSELL_USER_AGENT", "RestaurantScout/0.1"
+        )
+    )
+    loopnet_enabled: bool = field(
+        default_factory=lambda: _env_bool("LOOPNET_ENABLED")
+    )
+    loopnet_data_license_confirmed: bool = field(
+        default_factory=lambda: _env_bool("LOOPNET_DATA_LICENSE_CONFIRMED")
+    )
+    loopnet_authorized_feed_url: str | None = field(
+        default_factory=lambda: _env_optional("LOOPNET_AUTHORIZED_FEED_URL")
+    )
+    loopnet_authorized_feed_token: str | None = field(
+        default_factory=lambda: _env_optional("LOOPNET_AUTHORIZED_FEED_TOKEN")
+    )
+    loopnet_feed_is_complete: bool = field(
+        default_factory=lambda: _env_bool("LOOPNET_FEED_IS_COMPLETE")
+    )
+    loopnet_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("LOOPNET_TIMEOUT_SECONDS", "20"))
+    )
+    loopnet_user_agent: str = field(
+        default_factory=lambda: os.getenv("LOOPNET_USER_AGENT", "RestaurantScout/0.1")
     )
     removal_missing_scan_threshold: int = field(
         default_factory=lambda: max(
