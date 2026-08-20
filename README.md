@@ -92,9 +92,11 @@ independent scheduler:
 docker compose --profile scheduler up -d --build scheduler
 ```
 
-The default interval is 86,400 seconds. A listing source must be absent from two
-consecutive successful complete scans before it is treated as removed. A canonical
-listing remains available while any other source still reports it as active or unknown.
+By default, the scheduler runs every day at 8:00 AM in `America/Los_Angeles`, following
+PDT/PST daylight-saving changes automatically. Container restarts do not shift that
+wall-clock schedule. A listing source must be absent from two consecutive successful
+complete scans before it is treated as removed. A canonical listing remains available
+while any other source still reports it as active or unknown.
 
 Set `RESTAURANT_FOR_SALES_ENABLED=true` to include the public RestaurantForSales feed.
 The collector does not open photo, contact, login, or NDA routes. Each enabled source is

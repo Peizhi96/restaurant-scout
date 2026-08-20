@@ -67,7 +67,8 @@ curl --fail --user 'operator:your-password' https://scout.example.com/dashboard
 
 Verify that unauthenticated requests return 401, HTTPS is valid, the API and database
 are not reachable on public ports, migrations completed, and the scheduler reports its
-next run. Then exercise one non-sensitive listing update and inspect the audit state.
+next run at 8:00 AM in the configured `America/Los_Angeles` timezone. Then exercise one
+non-sensitive listing update and inspect the audit state.
 
 ## 4. Backups and rollback
 

@@ -42,6 +42,13 @@ def _env_int(name: str, default: int, *, minimum: int = 0) -> int:
     return max(minimum, int(os.getenv(name, str(default))))
 
 
+def _env_bounded_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
+    value = int(os.getenv(name, str(default)))
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str = field(default_factory=lambda: os.getenv("APP_NAME", "Restaurant Scout API"))
@@ -260,14 +267,20 @@ class Settings:
             2, int(os.getenv("REMOVAL_MISSING_SCAN_THRESHOLD", "2"))
         )
     )
-    scheduler_interval_seconds: float = field(
-        default_factory=lambda: max(
-            60.0, float(os.getenv("SCHEDULER_INTERVAL_SECONDS", "86400"))
+    scheduler_timezone: str = field(
+        default_factory=lambda: os.getenv(
+            "SCHEDULER_TIMEZONE", "America/Los_Angeles"
+        ).strip()
+        or "America/Los_Angeles"
+    )
+    scheduler_daily_hour: int = field(
+        default_factory=lambda: _env_bounded_int(
+            "SCHEDULER_DAILY_HOUR", 8, minimum=0, maximum=23
         )
     )
-    scheduler_initial_delay_seconds: float = field(
-        default_factory=lambda: max(
-            0.0, float(os.getenv("SCHEDULER_INITIAL_DELAY_SECONDS", "60"))
+    scheduler_daily_minute: int = field(
+        default_factory=lambda: _env_bounded_int(
+            "SCHEDULER_DAILY_MINUTE", 0, minimum=0, maximum=59
         )
     )
     max_preferred_rent: float = field(
