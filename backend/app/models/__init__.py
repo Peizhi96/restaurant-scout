@@ -20,6 +20,13 @@ from app.models.ingestion import (
     RawListingRecord,
     RawListingStatus,
 )
+from app.models.intelligence import (
+    AIRecommendation,
+    EmailNotification,
+    ListingAIAnalysis,
+    NotificationPriority,
+    NotificationStatus,
+)
 from app.models.listing import Listing, ListingStatus, MarketStatus
 from app.models.scoring import ListingScore
 from app.models.tracking import (
@@ -34,6 +41,7 @@ from app.models.tracking import (
 
 __all__ = [
     "Base",
+    "AIRecommendation",
     "CollectionRun",
     "CollectionRunStatus",
     "ConfidentialDataStatus",
@@ -45,10 +53,12 @@ __all__ = [
     "ExternalLead",
     "ExternalLeadSource",
     "ExternalLeadStatus",
+    "EmailNotification",
     "FinancialMetric",
     "FinancialMetricType",
     "FinancialVerificationStatus",
     "Listing",
+    "ListingAIAnalysis",
     "ListingEvent",
     "ListingSnapshot",
     "ListingSourceRecord",
@@ -58,6 +68,8 @@ __all__ = [
     "MarketStatus",
     "MatchMethod",
     "PossibleDuplicate",
+    "NotificationPriority",
+    "NotificationStatus",
     "RawListingRecord",
     "RawListingStatus",
 ]

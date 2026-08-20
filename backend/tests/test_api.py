@@ -69,6 +69,7 @@ class ApiTestCase(unittest.TestCase):
         updated = self.client.patch(
             f"/api/listings/{self.listing_id}",
             json={"status": ListingStatus.CONTACT_BROKER.value, "notes": "Call broker Tuesday"},
+            headers={"X-Internal-API-Key": "test-internal-key"},
         )
         self.assertEqual(updated.status_code, 200)
         self.assertEqual(updated.json()["status"], "CONTACT_BROKER")
@@ -78,11 +79,17 @@ class ApiTestCase(unittest.TestCase):
         missing = self.client.get("/api/listings/00000000-0000-0000-0000-000000000000")
         self.assertEqual(missing.status_code, 404)
 
-        empty_patch = self.client.patch(f"/api/listings/{self.listing_id}", json={})
+        empty_patch = self.client.patch(
+            f"/api/listings/{self.listing_id}",
+            json={},
+            headers={"X-Internal-API-Key": "test-internal-key"},
+        )
         self.assertEqual(empty_patch.status_code, 422)
 
         null_status = self.client.patch(
-            f"/api/listings/{self.listing_id}", json={"status": None}
+            f"/api/listings/{self.listing_id}",
+            json={"status": None},
+            headers={"X-Internal-API-Key": "test-internal-key"},
         )
         self.assertEqual(null_status.status_code, 422)
 

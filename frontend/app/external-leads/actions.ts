@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createExternalLead, updateExternalLead } from "@/lib/api";
+import { requireAuthenticatedOperator } from "@/lib/auth";
 
 function optional(value: FormDataEntryValue | null): string | null {
   const result = String(value ?? "").trim();
@@ -15,6 +16,7 @@ function errorMessage(error: unknown): string {
 }
 
 export async function addExternalLead(formData: FormData) {
+  await requireAuthenticatedOperator();
   let error: string | null = null;
   try {
     await createExternalLead({
@@ -31,6 +33,7 @@ export async function addExternalLead(formData: FormData) {
 }
 
 export async function saveExternalLead(formData: FormData) {
+  await requireAuthenticatedOperator();
   const id = String(formData.get("id") ?? "");
   let error: string | null = null;
   try {

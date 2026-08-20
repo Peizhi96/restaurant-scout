@@ -99,3 +99,81 @@ export interface ExternalLead {
   created_at: string;
   updated_at: string;
 }
+
+export type AIRecommendation = "STRONG_CANDIDATE" | "REVIEW" | "PASS" | "INSUFFICIENT_DATA";
+
+export interface ListingAIAnalysis {
+  listing_id: string;
+  recommendation: AIRecommendation;
+  strengths: string[];
+  risks: string[];
+  missing_information: string[];
+  confidence: string;
+  model: string;
+  prompt_version: string;
+  generated_at: string;
+  updated_at: string;
+}
+
+export type DueDiligenceAccessMethod = "UNKNOWN" | "EXTERNAL_NDA" | "BROKER_CONTACT";
+export type ConfidentialDataStatus =
+  | "UNKNOWN"
+  | "NDA_REQUIRED"
+  | "REQUESTED"
+  | "RECEIVED_UNVERIFIED"
+  | "VERIFIED"
+  | "NOT_PROVIDED";
+
+export interface DueDiligenceProfile {
+  id: string;
+  listing_id: string;
+  access_method: DueDiligenceAccessMethod;
+  access_status: ConfidentialDataStatus;
+  external_url: string | null;
+  broker_contact_name: string | null;
+  broker_contact_email: string | null;
+  broker_contact_phone: string | null;
+  inventory_included: boolean | null;
+  ffe_included: boolean | null;
+  notes: string | null;
+  requested_at: string | null;
+  received_at: string | null;
+  verified_at: string | null;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinancialMetric {
+  id: string;
+  listing_id: string;
+  metric_type: string;
+  amount: string;
+  currency: string;
+  period_start: string | null;
+  period_end: string | null;
+  source: string;
+  source_reference: string | null;
+  verification_status: "UNVERIFIED" | "VERIFIED";
+  notes: string | null;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DueDiligenceSummary {
+  profile: DueDiligenceProfile | null;
+  metrics: FinancialMetric[];
+}
+
+export interface DueDiligenceEvent {
+  id: string;
+  listing_id: string;
+  event_type: string;
+  actor: string;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  created_at: string;
+}

@@ -2,7 +2,7 @@
 
 Restaurant Scout is a V1-focused internal platform for discovering, tracking, and evaluating Bay Area restaurant acquisition and corporate-catering opportunities.
 
-The current implementation includes **Phase 0 — Foundation**, two operational **Phase 1 — Data Ingestion** feeds, two permission-gated source adapters, **Phase 2 — Dedup & Tracking**, the deterministic portion of **Phase 3 — Intelligence**, and the V1 dashboard portion of **Phase 4**. Manual ingestion, Restaurant Realty, RestaurantForSales, BizBuySell, and LoopNet all use the shared Collector interface. BizBuySell and LoopNet are disabled until an authorized feed and suitable data permission are supplied; they do not crawl either public website.
+The current implementation covers the V1 pipeline from compliant collection through tracking, deterministic scoring, structured AI analysis, actionable email alerts, protected due diligence, and production packaging. Manual ingestion, Restaurant Realty, RestaurantForSales, BizBuySell, and LoopNet all use the shared Collector interface. BizBuySell and LoopNet remain disabled until an authorized feed and suitable data permission are supplied; they do not crawl either public website.
 
 - FastAPI application and health/readiness endpoints.
 - PostgreSQL persistence through SQLAlchemy 2.
@@ -20,9 +20,12 @@ The current implementation includes **Phase 0 — Foundation**, two operational 
 - A zero-cost, link-only external-lead queue for BizBuySell and LoopNet, with URL deduplication, source recognition, P0 city selection, internal status, and notes. External leads remain separate from copied listing facts, scoring, and source-history tracking.
 - Daily scheduling independent of Codex.
 - Two-consecutive-miss removal reconciliation with source and listing audit counts.
-- A protected NDA/broker handoff and financial due-diligence backend, including access state, period-specific metrics, inventory/FF&E inclusion, verification status, and audit events.
+- A protected NDA/broker handoff and financial due-diligence backend and frontend, including access state, period-specific metrics, inventory/FF&E inclusion, verification status, and audit events.
 - Configurable deterministic Corporate Catering, Restaurant, and 60/40 Overall scores, including factor evidence, missing information, and data completeness.
-- A responsive Next.js dashboard with overview, filters, listing detail, score factors, history, events, and operator status/notes.
+- Structured OpenAI analysis that can explain but never replace deterministic scores, with persisted recommendations, strengths, risks, explicit missing information, confidence, model, prompt version, and an input fingerprint that avoids unnecessary regeneration.
+- SMTP email alerts for new score-qualified candidates, high-priority candidates, price drops of at least 10%, and changes to watched pipeline statuses. Every attempted alert is deduplicated and audited.
+- A responsive Next.js dashboard with overview, filters, listing detail, AI analysis, due diligence, score factors, history, events, and operator status/notes.
+- Production fail-fast configuration, single-operator HTTP Basic authentication behind HTTPS, server-only internal credentials, trusted-host enforcement, security headers, private service networking, CI, and GHCR image publishing.
 
 See `PROJECT_MEMORY.md` for the durable product and architecture baseline.
 
@@ -35,6 +38,11 @@ docker compose up --build
 The API is available at `http://localhost:8000`, with OpenAPI documentation at `http://localhost:8000/docs`.
 The dashboard is available at `http://localhost:3001/dashboard`. Port 3001 is the local default and can be changed with `FRONTEND_PORT`.
 The link-only external-lead queue is available at `http://localhost:3001/external-leads`.
+
+AI and email remain opt-in locally. Copy the relevant settings from `.env.example`, set
+`OPENAI_ENABLED=true` and/or `EMAIL_ENABLED=true`, and provide the required credentials.
+Secrets must stay in the gitignored `.env`; never commit API keys, SMTP passwords, or
+confidential due-diligence data.
 
 ## Run tests locally
 
@@ -90,6 +98,8 @@ unless every run is guaranteed to be a complete source snapshot.
 - `GET /api/listings/{id}/history`
 - `GET /api/listings/{id}/events`
 - `GET /api/listings/{id}/scores`
+- `GET /api/listings/{id}/analysis`
+- `POST /api/listings/{id}/analysis/generate`
 - `GET /api/possible-duplicates`
 - `PATCH /api/possible-duplicates/{id}`
 - `POST /api/jobs/manual`
@@ -106,6 +116,14 @@ unless every run is guaranteed to be a complete source snapshot.
 - `POST /api/external-leads`
 - `PATCH /api/external-leads/{id}`
 
-Job endpoints require the `X-Internal-API-Key` header. Set `INTERNAL_API_KEY` to a non-default secret before any non-local deployment.
+Job endpoints, AI generation, listing mutations, and external-lead mutations require the `X-Internal-API-Key` header. Set `INTERNAL_API_KEY` to a unique secret of at least 32 characters before production deployment.
 
 Due-diligence endpoints also require `X-Internal-API-Key`; profile and metric mutations additionally require `X-Operator-Id` for audit attribution. The backend stores official external handoff URLs but never signs an NDA, verifies email, or bypasses a source's access controls on the operator's behalf.
+
+## Production deployment
+
+GitHub Pages cannot run this application because it is a dynamic FastAPI/PostgreSQL/
+Next.js stack. GitHub Actions and GHCR are used for CI and versioned container images;
+the containers run on a Docker host with persistent storage. See
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the release, TLS, backup, rollback, and
+post-deployment verification procedure.

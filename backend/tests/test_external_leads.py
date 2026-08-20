@@ -20,6 +20,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
     def setUp(self) -> None:
         Base.metadata.drop_all(engine)
         Base.metadata.create_all(engine)
+        self.auth = {"X-Internal-API-Key": "test-internal-key"}
 
     def test_create_deduplicate_list_and_update_link_only_lead(self) -> None:
         created = self.client.post(
@@ -32,6 +33,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
                 "city": "san mateo",
                 "notes": "Review location and contact path.",
             },
+            headers=self.auth,
         )
         self.assertEqual(created.status_code, 200)
         lead = created.json()
@@ -53,6 +55,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
                 ),
                 "city": "Palo Alto",
             },
+            headers=self.auth,
         )
         self.assertEqual(duplicate.status_code, 200)
         self.assertEqual(duplicate.json()["id"], lead["id"])
@@ -72,6 +75,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
                 "status": "CONTACT_BROKER",
                 "notes": "Ask broker for independently supplied facts.",
             },
+            headers=self.auth,
         )
         self.assertEqual(updated.status_code, 200)
         self.assertEqual(updated.json()["city"], "Palo Alto")
@@ -84,6 +88,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
                 "source_url": "https://www.loopnet.com/Listing/example/456/",
                 "city": None,
             },
+            headers=self.auth,
         )
         self.assertEqual(created.status_code, 200)
         self.assertEqual(created.json()["source"], "LOOPNET")
@@ -110,7 +115,9 @@ class ExternalLeadApiTestCase(unittest.TestCase):
         for source_url in invalid_urls:
             with self.subTest(source_url=source_url):
                 response = self.client.post(
-                    "/api/external-leads", json={"source_url": source_url}
+                    "/api/external-leads",
+                    json={"source_url": source_url},
+                    headers=self.auth,
                 )
                 self.assertEqual(response.status_code, 422)
 
@@ -120,6 +127,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
                 "source_url": "https://www.loopnet.com/Listing/example/789/",
                 "city": "Oakland",
             },
+            headers=self.auth,
         )
         self.assertEqual(outside_scope.status_code, 422)
         self.assertIn("P0 target cities", outside_scope.json()["detail"])
@@ -128,15 +136,19 @@ class ExternalLeadApiTestCase(unittest.TestCase):
         missing = self.client.patch(
             "/api/external-leads/00000000-0000-0000-0000-000000000000",
             json={"status": "PASSED"},
+            headers=self.auth,
         )
         self.assertEqual(missing.status_code, 404)
 
         created = self.client.post(
             "/api/external-leads",
             json={"source_url": "https://www.loopnet.com/Listing/example/999/"},
+            headers=self.auth,
         )
         empty = self.client.patch(
-            f"/api/external-leads/{created.json()['id']}", json={}
+            f"/api/external-leads/{created.json()['id']}",
+            json={},
+            headers=self.auth,
         )
         self.assertEqual(empty.status_code, 422)
 

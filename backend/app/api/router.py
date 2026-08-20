@@ -5,6 +5,7 @@ from app.api.routes import (
     duplicates,
     external_leads,
     health,
+    intelligence,
     jobs,
     listings,
     scoring,
@@ -14,6 +15,7 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(listings.router, prefix="/api/listings", tags=["listings"])
 api_router.include_router(scoring.router, prefix="/api/listings", tags=["scoring"])
+api_router.include_router(intelligence.router, prefix="/api/listings", tags=["intelligence"])
 api_router.include_router(
     duplicates.router,
     prefix="/api/possible-duplicates",

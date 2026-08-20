@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import require_internal_api_key
 from app.core.database import get_db
 from app.models.external_lead import ExternalLeadSource, ExternalLeadStatus
 from app.schemas.external_lead import (
@@ -38,7 +39,9 @@ def list_external_leads(
     )
 
 
-@router.post("", response_model=ExternalLeadRead)
+@router.post(
+    "", response_model=ExternalLeadRead, dependencies=[Depends(require_internal_api_key)]
+)
 def create_external_lead(
     request: ExternalLeadCreate, db: DbSession
 ) -> ExternalLeadRead:
@@ -51,7 +54,11 @@ def create_external_lead(
         ) from exc
 
 
-@router.patch("/{lead_id}", response_model=ExternalLeadRead)
+@router.patch(
+    "/{lead_id}",
+    response_model=ExternalLeadRead,
+    dependencies=[Depends(require_internal_api_key)],
+)
 def update_external_lead(
     lead_id: uuid.UUID, update: ExternalLeadUpdate, db: DbSession
 ) -> ExternalLeadRead:

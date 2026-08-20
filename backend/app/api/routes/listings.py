@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import require_internal_api_key
 from app.core.database import get_db
 from app.models.listing import ListingStatus
 from app.schemas.listing import ListingRead, ListingUpdate
@@ -72,7 +73,11 @@ def get_listing(listing_id: uuid.UUID, db: DbSession) -> ListingRead:
     return listing
 
 
-@router.patch("/{listing_id}", response_model=ListingRead)
+@router.patch(
+    "/{listing_id}",
+    response_model=ListingRead,
+    dependencies=[Depends(require_internal_api_key)],
+)
 def update_listing(listing_id: uuid.UUID, update: ListingUpdate, db: DbSession) -> ListingRead:
     listing = service.find_listing(db, listing_id)
     if listing is None:

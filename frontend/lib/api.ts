@@ -5,15 +5,38 @@ import type {
   ListingEvent,
   ListingScore,
   ListingSnapshot,
+  ListingAIAnalysis,
+  DueDiligenceSummary,
+  DueDiligenceEvent,
+  FinancialMetric,
 } from "./types";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+function protectedHeaders(operatorId?: string): Record<string, string> {
+  const apiKey = process.env.INTERNAL_API_KEY;
+  if (!apiKey && process.env.APP_ENV === "production") {
+    throw new Error("INTERNAL_API_KEY is not configured");
+  }
+  return {
+    ...(apiKey ? { "X-Internal-API-Key": apiKey } : {}),
+    ...(operatorId ? { "X-Operator-Id": operatorId } : {}),
+  };
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options?: { protected?: boolean; operatorId?: string },
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     cache: "no-store",
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(options?.protected ? protectedHeaders(options.operatorId) : {}),
+      ...init?.headers,
+    },
   });
   if (!response.ok) {
     let detail = `Restaurant Scout API returned ${response.status}`;
@@ -26,6 +49,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail);
   }
   return response.json() as Promise<T>;
+}
+
+async function optionalRequest<T>(path: string, options?: { protected?: boolean }): Promise<T | null> {
+  try {
+    return await request<T>(path, undefined, options);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("not generated")) return null;
+    throw error;
+  }
 }
 
 export async function getListings(query = ""): Promise<Listing[]> {
@@ -74,7 +106,7 @@ export async function updateListing(
   return request<Listing>(`/api/listings/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
-  });
+  }, { protected: true });
 }
 
 export async function getExternalLeads(query = ""): Promise<ExternalLead[]> {
@@ -89,7 +121,7 @@ export async function createExternalLead(payload: {
   return request<ExternalLead>("/api/external-leads", {
     method: "POST",
     body: JSON.stringify(payload),
-  });
+  }, { protected: true });
 }
 
 export async function updateExternalLead(
@@ -99,5 +131,62 @@ export async function updateExternalLead(
   return request<ExternalLead>(`/api/external-leads/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  }, { protected: true });
+}
+
+export async function getAIAnalysis(id: string): Promise<ListingAIAnalysis | null> {
+  return optionalRequest<ListingAIAnalysis>(`/api/listings/${id}/analysis`);
+}
+
+export async function generateAIAnalysis(id: string): Promise<ListingAIAnalysis> {
+  return request<ListingAIAnalysis>(`/api/listings/${id}/analysis/generate`, {
+    method: "POST",
+    body: JSON.stringify({ force: true }),
+  }, { protected: true });
+}
+
+export async function getDueDiligence(id: string): Promise<DueDiligenceSummary> {
+  return request<DueDiligenceSummary>(`/api/listings/${id}/due-diligence`, undefined, {
+    protected: true,
   });
+}
+
+export async function getDueDiligenceEvents(id: string): Promise<DueDiligenceEvent[]> {
+  return request<DueDiligenceEvent[]>(`/api/listings/${id}/due-diligence/events`, undefined, {
+    protected: true,
+  });
+}
+
+export async function updateDueDiligenceProfile(
+  id: string,
+  payload: Record<string, unknown>,
+  operatorId: string,
+): Promise<DueDiligenceSummary["profile"]> {
+  return request(`/api/listings/${id}/due-diligence/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  }, { protected: true, operatorId });
+}
+
+export async function createFinancialMetric(
+  id: string,
+  payload: Record<string, unknown>,
+  operatorId: string,
+): Promise<FinancialMetric> {
+  return request(`/api/listings/${id}/due-diligence/metrics`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, { protected: true, operatorId });
+}
+
+export async function updateFinancialMetric(
+  listingId: string,
+  metricId: string,
+  payload: Record<string, unknown>,
+  operatorId: string,
+): Promise<FinancialMetric> {
+  return request(`/api/listings/${listingId}/due-diligence/metrics/${metricId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  }, { protected: true, operatorId });
 }

@@ -38,6 +38,10 @@ def _env_float_map(name: str, default: dict[str, float]) -> dict[str, float]:
     return result
 
 
+def _env_int(name: str, default: int, *, minimum: int = 0) -> int:
+    return max(minimum, int(os.getenv(name, str(default))))
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str = field(default_factory=lambda: os.getenv("APP_NAME", "Restaurant Scout API"))
@@ -57,6 +61,50 @@ class Settings:
     )
     internal_api_key: str | None = field(
         default_factory=lambda: os.getenv("INTERNAL_API_KEY")
+    )
+    trusted_hosts: tuple[str, ...] = field(
+        default_factory=lambda: _env_csv("TRUSTED_HOSTS", ("localhost", "127.0.0.1", "testserver"))
+    )
+    openai_enabled: bool = field(default_factory=lambda: _env_bool("OPENAI_ENABLED"))
+    openai_api_key: str | None = field(
+        default_factory=lambda: _env_optional("OPENAI_API_KEY")
+    )
+    openai_model: str = field(
+        default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-5.4-mini").strip()
+    )
+    openai_timeout_seconds: float = field(
+        default_factory=lambda: max(1.0, float(os.getenv("OPENAI_TIMEOUT_SECONDS", "45")))
+    )
+    email_enabled: bool = field(default_factory=lambda: _env_bool("EMAIL_ENABLED"))
+    alert_recipient: str | None = field(
+        default_factory=lambda: _env_optional("ALERT_RECIPIENT")
+    )
+    alert_from_email: str | None = field(
+        default_factory=lambda: _env_optional("ALERT_FROM_EMAIL")
+    )
+    smtp_host: str | None = field(default_factory=lambda: _env_optional("SMTP_HOST"))
+    smtp_port: int = field(default_factory=lambda: _env_int("SMTP_PORT", 587, minimum=1))
+    smtp_username: str | None = field(
+        default_factory=lambda: _env_optional("SMTP_USERNAME")
+    )
+    smtp_password: str | None = field(
+        default_factory=lambda: _env_optional("SMTP_PASSWORD")
+    )
+    smtp_use_tls: bool = field(default_factory=lambda: _env_bool("SMTP_USE_TLS", True))
+    smtp_use_ssl: bool = field(default_factory=lambda: _env_bool("SMTP_USE_SSL"))
+    alert_new_score_threshold: float = field(
+        default_factory=lambda: float(os.getenv("ALERT_NEW_SCORE_THRESHOLD", "80"))
+    )
+    alert_high_score_threshold: float = field(
+        default_factory=lambda: float(os.getenv("ALERT_HIGH_SCORE_THRESHOLD", "90"))
+    )
+    alert_price_drop_percent: float = field(
+        default_factory=lambda: float(os.getenv("ALERT_PRICE_DROP_PERCENT", "10"))
+    )
+    alert_watched_statuses: tuple[str, ...] = field(
+        default_factory=lambda: _env_csv(
+            "ALERT_WATCHED_STATUSES", ("REVIEWING", "CONTACT_BROKER", "DUE_DILIGENCE")
+        )
     )
     restaurant_realty_enabled: bool = field(
         default_factory=lambda: _env_bool("RESTAURANT_REALTY_ENABLED")
@@ -241,3 +289,23 @@ class Settings:
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def validate_production_settings(settings: Settings) -> None:
+    if settings.app_env.casefold() != "production":
+        return
+    weak_keys = {"local-dev-only-change-me", "change-this-before-non-local-use"}
+    if not settings.internal_api_key or len(settings.internal_api_key) < 32:
+        raise RuntimeError("INTERNAL_API_KEY must contain at least 32 characters in production")
+    if settings.internal_api_key in weak_keys:
+        raise RuntimeError("INTERNAL_API_KEY uses a known development value")
+    if not settings.trusted_hosts or "*" in settings.trusted_hosts:
+        raise RuntimeError("TRUSTED_HOSTS must explicitly list production hostnames")
+    if settings.openai_enabled and not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY is required when OPENAI_ENABLED=true")
+    if settings.email_enabled and not all(
+        (settings.alert_recipient, settings.alert_from_email, settings.smtp_host)
+    ):
+        raise RuntimeError(
+            "ALERT_RECIPIENT, ALERT_FROM_EMAIL, and SMTP_HOST are required when EMAIL_ENABLED=true"
+        )

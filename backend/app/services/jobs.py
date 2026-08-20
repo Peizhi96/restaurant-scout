@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.collectors.base import Collector
 from app.collectors.bizbuysell import BizBuySellCollector
 from app.collectors.loopnet import LoopNetCollector
 from app.collectors.manual import ManualCollector
@@ -17,6 +18,7 @@ from app.schemas.ingestion import (
     RawListing,
 )
 from app.services.collection import run_collector
+from app.services.post_processing import process_collection_run
 
 
 class CollectorDisabledError(RuntimeError):
@@ -60,7 +62,15 @@ def run_manual_ingestion(db: Session, request: ManualIngestionRequest) -> Collec
         )
         for item in request.items
     )
-    return run_collector(db, collector)
+    run = run_collector(db, collector)
+    process_collection_run(db, run)
+    return run
+
+
+def _run_with_post_processing(db: Session, collector: Collector) -> CollectionRun:
+    run = run_collector(db, collector)
+    process_collection_run(db, run)
+    return run
 
 
 def run_automated_scan(db: Session, request: AutomatedScanRequest) -> CollectionRun:
@@ -80,7 +90,7 @@ def run_automated_scan(db: Session, request: AutomatedScanRequest) -> Collection
             request_delay_seconds=settings.restaurant_realty_request_delay_seconds,
             user_agent=settings.restaurant_realty_user_agent,
         )
-        return run_collector(db, collector)
+        return _run_with_post_processing(db, collector)
     if request.collector == AutomatedCollectorName.RESTAURANT_FOR_SALES:
         if not settings.restaurant_for_sales_enabled:
             raise CollectorDisabledError(
@@ -95,7 +105,7 @@ def run_automated_scan(db: Session, request: AutomatedScanRequest) -> Collection
             request_delay_seconds=settings.restaurant_for_sales_request_delay_seconds,
             user_agent=settings.restaurant_for_sales_user_agent,
         )
-        return run_collector(db, collector)
+        return _run_with_post_processing(db, collector)
     if request.collector == AutomatedCollectorName.BIZBUYSELL:
         feed_url = _require_authorized_feed(
             source_label="BIZBUYSELL",
@@ -111,7 +121,7 @@ def run_automated_scan(db: Session, request: AutomatedScanRequest) -> Collection
             timeout_seconds=settings.bizbuysell_timeout_seconds,
             user_agent=settings.bizbuysell_user_agent,
         )
-        return run_collector(db, collector)
+        return _run_with_post_processing(db, collector)
     if request.collector == AutomatedCollectorName.LOOPNET:
         feed_url = _require_authorized_feed(
             source_label="LOOPNET",
@@ -127,7 +137,7 @@ def run_automated_scan(db: Session, request: AutomatedScanRequest) -> Collection
             timeout_seconds=settings.loopnet_timeout_seconds,
             user_agent=settings.loopnet_user_agent,
         )
-        return run_collector(db, collector)
+        return _run_with_post_processing(db, collector)
     raise ValueError(f"Unsupported collector: {request.collector}")
 
 

@@ -216,6 +216,22 @@ input:focus, select:focus, textarea:focus { border-color: #789584; box-shadow: 0
 .external-open-button { justify-self: start; }
 .external-review-form { padding-top: 20px; border-top: 1px solid var(--line); }
 
+.ai-columns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-bottom: 22px; }
+.ai-columns > div { padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: #fbfbf7; }
+.ai-columns h3 { margin: 0 0 10px; font-size: 14px; }
+.ai-columns ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+.ai-columns li + li { margin-top: 7px; }
+.dd-form { display: grid; gap: 20px; }
+.dd-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.dd-form label { display: grid; gap: 6px; }
+.dd-form label > span { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.dd-form input, .dd-form select { width: 100%; min-height: 44px; padding: 0 12px; }
+.dd-form textarea { width: 100%; padding: 12px; resize: vertical; }
+.dd-form .span-2 { grid-column: span 2; }
+.dd-form .primary-button { justify-self: start; }
+.dd-divider { height: 1px; margin: 26px 0; background: var(--line); }
+.table-note { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+
 @media (max-width: 1120px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .candidate-grid { grid-template-columns: 1fr; }
@@ -243,6 +259,8 @@ input:focus, select:focus, textarea:focus { border-color: #789584; box-shadow: 0
   .factor-columns { grid-template-columns: 1fr; }
   .external-lead-heading { flex-direction: column; }
   .external-lead-meta { justify-items: start; }
+  .ai-columns, .dd-form-grid { grid-template-columns: 1fr; }
+  .dd-form .span-2 { grid-column: span 1; }
 }
 
 @media (max-width: 560px) {

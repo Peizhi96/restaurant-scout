@@ -1,0 +1,103 @@
+name: restaurant-scout-production
+
+x-app-environment: &app-environment
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  APP_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TRUSTED_HOSTS: ${TRUSTED_HOSTS:?TRUSTED_HOSTS is required}
+  INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
+  OPENAI_ENABLED: ${OPENAI_ENABLED:-false}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+  EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+  ALERT_RECIPIENT: ${ALERT_RECIPIENT:-}
+  ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+  SMTP_USE_SSL: ${SMTP_USE_SSL:-false}
+  RESTAURANT_REALTY_ENABLED: ${RESTAURANT_REALTY_ENABLED:-false}
+  RESTAURANT_FOR_SALES_ENABLED: ${RESTAURANT_FOR_SALES_ENABLED:-false}
+  SCHEDULER_INITIAL_DELAY_SECONDS: ${SCHEDULER_INITIAL_DELAY_SECONDS:-60}
+  SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-86400}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [private]
+
+  api:
+    image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/restaurant-scout-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *app-environment
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [private]
+
+  scheduler:
+    image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/restaurant-scout-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *app-environment
+    command: ["python", "-m", "app.jobs.scheduler"]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [private]
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/restaurant-scout-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      API_BASE_URL: http://api:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
+      APP_AUTH_USERNAME: ${APP_AUTH_USERNAME:?APP_AUTH_USERNAME is required}
+      APP_AUTH_PASSWORD: ${APP_AUTH_PASSWORD:?APP_AUTH_PASSWORD is required}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [private]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend]
+    networks: [private]
+
+networks:
+  private:
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
