@@ -44,6 +44,12 @@ AI and email remain opt-in locally. Copy the relevant settings from `.env.exampl
 Secrets must stay in the gitignored `.env`; never commit API keys, SMTP passwords, or
 confidential due-diligence data.
 
+When the same Gmail account is used for BizBuySell IMAP ingestion and outbound alerts,
+local Compose may reuse `BIZBUYSELL_IMAP_PASSWORD` as the SMTP app password when
+`SMTP_PASSWORD` is unset. Configure `SMTP_HOST=smtp.gmail.com`, the SMTP username,
+sender, and recipient explicitly. Production deployments should set a dedicated
+`SMTP_PASSWORD` rather than relying on this local convenience fallback.
+
 ## Configure BizBuySell saved-search links
 
 Restaurant Scout never crawls BizBuySell search or detail pages. Instead, create a
