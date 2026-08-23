@@ -1,3 +1,4 @@
+import imaplib
 import os
 import unittest
 from dataclasses import replace
@@ -29,6 +30,7 @@ def alert_message(*, sender: str, html: str, subject: str = "New restaurant") ->
 class FakeMailbox:
     messages: dict[bytes, bytes] = {}
     seen: list[bytes] = []
+    search_calls: list[tuple[object, ...]] = []
 
     def __init__(self, host: str, port: int, *, timeout: int) -> None:
         self.host = host
@@ -47,8 +49,12 @@ class FakeMailbox:
     def select(self, mailbox: str, readonly: bool = False) -> tuple[str, list[bytes]]:
         return "OK", [str(len(self.messages)).encode()]
 
+    def logout(self) -> tuple[str, list[bytes]]:
+        return "BYE", [b"logged out"]
+
     def uid(self, command: str, *args: object) -> tuple[str, list[object]]:
         if command == "search":
+            self.search_calls.append(args)
             return "OK", [b" ".join(self.messages)]
         if command == "fetch":
             message_id = args[0]
@@ -60,6 +66,22 @@ class FakeMailbox:
             self.seen.append(message_id)
             return "OK", [b"stored"]
         raise AssertionError(f"Unexpected IMAP command: {command}")
+
+
+class ReconnectingMailbox(FakeMailbox):
+    connections = 0
+    fetch_attempts = 0
+
+    def __init__(self, host: str, port: int, *, timeout: int) -> None:
+        super().__init__(host, port, timeout=timeout)
+        type(self).connections += 1
+
+    def uid(self, command: str, *args: object) -> tuple[str, list[object]]:
+        if command == "fetch":
+            type(self).fetch_attempts += 1
+            if type(self).fetch_attempts == 1:
+                raise imaplib.IMAP4.abort("socket error: EOF")
+        return super().uid(command, *args)
 
 
 class ExternalLeadApiTestCase(unittest.TestCase):
@@ -260,6 +282,7 @@ class ExternalLeadApiTestCase(unittest.TestCase):
             ),
         }
         FakeMailbox.seen = []
+        FakeMailbox.search_calls = []
         settings = replace(
             get_settings(),
             bizbuysell_email_alerts_enabled=True,
@@ -288,6 +311,42 @@ class ExternalLeadApiTestCase(unittest.TestCase):
             self.assertEqual(first.leads_created, 1)
             self.assertEqual(second.leads_existing, 1)
             self.assertEqual(FakeMailbox.seen, [b"1", b"1"])
+            self.assertTrue(
+                all("FROM" in call for call in FakeMailbox.search_calls)
+            )
+
+    def test_imap_sync_reconnects_once_after_fetch_eof(self) -> None:
+        ReconnectingMailbox.messages = {
+            b"1": alert_message(
+                sender="alerts@bizbuysell.com",
+                html=(
+                    '<a href="https://www.bizbuysell.com/business-opportunity/a/303/">'
+                    "Listing A</a>"
+                ),
+            )
+        }
+        ReconnectingMailbox.seen = []
+        ReconnectingMailbox.search_calls = []
+        ReconnectingMailbox.connections = 0
+        ReconnectingMailbox.fetch_attempts = 0
+        settings = replace(
+            get_settings(),
+            bizbuysell_email_alerts_enabled=True,
+            bizbuysell_imap_host="imap.example.com",
+            bizbuysell_imap_username="scout@example.com",
+            bizbuysell_imap_password="test-only",
+            bizbuysell_email_allowed_sender_domains=("bizbuysell.com",),
+        )
+
+        with SessionLocal() as db:
+            run = sync_email_alerts(
+                db, settings=settings, mailbox_factory=ReconnectingMailbox
+            )
+
+        self.assertEqual(run.status.value, "SUCCEEDED")
+        self.assertEqual(run.leads_created, 1)
+        self.assertEqual(ReconnectingMailbox.connections, 2)
+        self.assertEqual(ReconnectingMailbox.fetch_attempts, 2)
 
     def test_email_sync_status_endpoint_is_protected(self) -> None:
         unauthorized = self.client.get(

@@ -33,6 +33,12 @@ x-app-environment: &app-environment
   SCHEDULER_DAILY_HOUR: ${SCHEDULER_DAILY_HOUR:-8}
   SCHEDULER_DAILY_MINUTE: ${SCHEDULER_DAILY_MINUTE:-0}
 
+x-service-logging: &service-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
@@ -49,6 +55,7 @@ services:
       timeout: 5s
       retries: 10
     networks: [private]
+    logging: *service-logging
 
   api:
     image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/restaurant-scout-api:${IMAGE_TAG:-latest}
@@ -64,6 +71,7 @@ services:
       timeout: 5s
       retries: 5
     networks: [private]
+    logging: *service-logging
 
   scheduler:
     image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/restaurant-scout-api:${IMAGE_TAG:-latest}
@@ -74,6 +82,7 @@ services:
       api:
         condition: service_healthy
     networks: [private]
+    logging: *service-logging
 
   frontend:
     image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/restaurant-scout-frontend:${IMAGE_TAG:-latest}
@@ -89,6 +98,7 @@ services:
       api:
         condition: service_healthy
     networks: [private]
+    logging: *service-logging
 
   caddy:
     image: caddy:2-alpine
@@ -104,6 +114,7 @@ services:
       - caddy_config:/config
     depends_on: [frontend]
     networks: [private]
+    logging: *service-logging
 
 networks:
   private:

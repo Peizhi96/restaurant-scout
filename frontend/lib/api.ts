@@ -11,6 +11,8 @@ import type {
   DueDiligenceSummary,
   DueDiligenceEvent,
   FinancialMetric,
+  CollectionRun,
+  SchedulerStatus,
 } from "./types";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -99,6 +101,18 @@ export async function enrichListings(listings: Listing[]): Promise<EnrichedListi
       }
     }),
   );
+}
+
+export async function getCollectionRuns(limit = 20): Promise<CollectionRun[]> {
+  return request<CollectionRun[]>(`/api/jobs/runs?limit=${limit}`, undefined, {
+    protected: true,
+  });
+}
+
+export async function getSchedulerStatus(): Promise<SchedulerStatus> {
+  return request<SchedulerStatus>("/api/jobs/schedule", undefined, {
+    protected: true,
+  });
 }
 
 export async function updateListing(

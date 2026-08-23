@@ -1,16 +1,20 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_internal_api_key
+from app.core.config import get_settings
 from app.core.database import get_db
+from app.jobs.scheduler import next_daily_run
 from app.schemas.ingestion import (
     AutomatedScanRequest,
     CollectionRunRead,
     ManualIngestionRequest,
     RawListingRecordRead,
+    SchedulerStatusRead,
 )
 from app.services import jobs as service
 
@@ -43,6 +47,22 @@ def list_collection_runs(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[CollectionRunRead]:
     return service.collection_runs(db, offset=offset, limit=limit)
+
+
+@router.get("/schedule", response_model=SchedulerStatusRead)
+def get_scheduler_status() -> SchedulerStatusRead:
+    settings = get_settings()
+    return SchedulerStatusRead(
+        timezone=settings.scheduler_timezone,
+        daily_hour=settings.scheduler_daily_hour,
+        daily_minute=settings.scheduler_daily_minute,
+        next_run_at=next_daily_run(
+            datetime.now(UTC),
+            timezone_name=settings.scheduler_timezone,
+            hour=settings.scheduler_daily_hour,
+            minute=settings.scheduler_daily_minute,
+        ),
+    )
 
 
 @router.get("/runs/{run_id}", response_model=CollectionRunRead)

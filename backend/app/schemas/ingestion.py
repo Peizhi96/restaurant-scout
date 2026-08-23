@@ -55,6 +55,13 @@ class CollectionRunRead(BaseModel):
     completed_at: datetime | None
 
 
+class SchedulerStatusRead(BaseModel):
+    timezone: str
+    daily_hour: int
+    daily_minute: int
+    next_run_at: datetime
+
+
 class RawListingRecordRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -30,6 +30,19 @@ export function dateLabel(value: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/Los_Angeles",
+  }).format(new Date(value));
+}
+
+export function dateTimeLabel(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Los_Angeles",
+    timeZoneName: "short",
   }).format(new Date(value));
 }
 

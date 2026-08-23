@@ -85,6 +85,28 @@ export interface EnrichedListing extends Listing {
   scoreDetail: ListingScore | null;
 }
 
+export interface CollectionRun {
+  id: string;
+  collector_name: string;
+  status: "RUNNING" | "COMPLETED" | "PARTIAL" | "FAILED";
+  collected_count: number;
+  succeeded_count: number;
+  failed_count: number;
+  reconciled_count: number;
+  source_removed_count: number;
+  listing_removed_count: number;
+  error_summary: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface SchedulerStatus {
+  timezone: string;
+  daily_hour: number;
+  daily_minute: number;
+  next_run_at: string;
+}
+
 export type ExternalLeadSource = "BIZBUYSELL" | "LOOPNET";
 export type ExternalLeadStatus = "NEW" | "REVIEWING" | "CONTACT_BROKER" | "PASSED";
 export type ExternalLeadDiscoveryMethod = "MANUAL" | "EMAIL_ALERT";

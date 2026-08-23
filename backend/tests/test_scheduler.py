@@ -2,7 +2,7 @@ import unittest
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from app.jobs.scheduler import next_daily_run, seconds_until
+from app.jobs.scheduler import next_daily_run, scheduled_run_today, seconds_until
 
 
 class SchedulerTimingTestCase(unittest.TestCase):
@@ -58,3 +58,30 @@ class SchedulerTimingTestCase(unittest.TestCase):
                 hour=8,
                 minute=0,
             )
+
+    def test_detects_a_missed_run_after_eight_am_pacific(self) -> None:
+        now = datetime(2026, 8, 20, 18, 0, tzinfo=UTC)
+
+        missed = scheduled_run_today(
+            now,
+            timezone_name="America/Los_Angeles",
+            hour=8,
+            minute=0,
+        )
+
+        self.assertEqual(
+            missed,
+            datetime(2026, 8, 20, 8, 0, tzinfo=ZoneInfo("America/Los_Angeles")),
+        )
+
+    def test_does_not_catch_up_before_todays_run_time(self) -> None:
+        now = datetime(2026, 8, 20, 14, 30, tzinfo=UTC)
+
+        self.assertIsNone(
+            scheduled_run_today(
+                now,
+                timezone_name="America/Los_Angeles",
+                hour=8,
+                minute=0,
+            )
+        )

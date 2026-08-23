@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import imaplib
+import logging
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ from app.repositories import external_leads as repository
 from app.services import external_leads
 
 _URL_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_IMAP_CONNECTION_ERRORS = (imaplib.IMAP4.abort, OSError, TimeoutError)
+logger = logging.getLogger(__name__)
 
 
 class EmailAlertSyncDisabledError(RuntimeError):
@@ -185,6 +188,63 @@ def _message_bytes(fetch_data: Sequence[Any]) -> bytes | None:
     return None
 
 
+def _connect_mailbox(
+    settings: Settings,
+    mailbox_factory: Callable[..., imaplib.IMAP4_SSL],
+) -> imaplib.IMAP4_SSL:
+    mailbox = mailbox_factory(
+        settings.bizbuysell_imap_host,
+        settings.bizbuysell_imap_port,
+        timeout=30,
+    )
+    mailbox.login(
+        settings.bizbuysell_imap_username,
+        settings.bizbuysell_imap_password,
+    )
+    status, _ = mailbox.select(settings.bizbuysell_imap_mailbox, readonly=False)
+    if status != "OK":
+        _safe_logout(mailbox)
+        raise EmailAlertSyncError("The configured IMAP mailbox could not be selected")
+    return mailbox
+
+
+def _safe_logout(mailbox: imaplib.IMAP4_SSL | None) -> None:
+    if mailbox is None:
+        return
+    try:
+        mailbox.logout()
+    except _IMAP_CONNECTION_ERRORS:
+        logger.info("IMAP connection was already closed during logout")
+
+
+def _search_message_ids(
+    mailbox: imaplib.IMAP4_SSL,
+    allowed_sender_domains: Sequence[str],
+) -> list[bytes]:
+    message_ids: list[bytes] = []
+    seen: set[bytes] = set()
+    for domain in allowed_sender_domains:
+        status, payload = mailbox.uid(
+            "search", None, "UNSEEN", "FROM", f'"{domain}"'
+        )
+        if status != "OK":
+            raise EmailAlertSyncError("The configured IMAP mailbox could not be searched")
+        for message_id in payload[0].split() if payload and payload[0] else []:
+            if message_id not in seen:
+                seen.add(message_id)
+                message_ids.append(message_id)
+    return message_ids
+
+
+def _reconnect(
+    mailbox: imaplib.IMAP4_SSL | None,
+    settings: Settings,
+    mailbox_factory: Callable[..., imaplib.IMAP4_SSL],
+) -> imaplib.IMAP4_SSL:
+    _safe_logout(mailbox)
+    return _connect_mailbox(settings, mailbox_factory)
+
+
 def sync_email_alerts(
     db: Session,
     *,
@@ -212,53 +272,64 @@ def sync_email_alerts(
     links_found = 0
     leads_created = 0
     leads_existing = 0
+    mailbox: imaplib.IMAP4_SSL | None = None
     try:
-        with mailbox_factory(
-            settings.bizbuysell_imap_host,
-            settings.bizbuysell_imap_port,
-            timeout=30,
-        ) as mailbox:
-            mailbox.login(
-                settings.bizbuysell_imap_username,
-                settings.bizbuysell_imap_password,
+        mailbox = _connect_mailbox(settings, mailbox_factory)
+        try:
+            message_ids = _search_message_ids(
+                mailbox, settings.bizbuysell_email_allowed_sender_domains
             )
-            status, _ = mailbox.select(settings.bizbuysell_imap_mailbox, readonly=False)
+        except _IMAP_CONNECTION_ERRORS:
+            logger.warning("IMAP search connection dropped; reconnecting once")
+            mailbox = _reconnect(mailbox, settings, mailbox_factory)
+            message_ids = _search_message_ids(
+                mailbox, settings.bizbuysell_email_allowed_sender_domains
+            )
+        message_ids = message_ids[-settings.bizbuysell_email_sync_max_messages :]
+        for message_id in message_ids:
+            for attempt in range(2):
+                try:
+                    status, fetch_data = mailbox.uid("fetch", message_id, "(RFC822)")
+                    break
+                except _IMAP_CONNECTION_ERRORS:
+                    if attempt == 1:
+                        raise
+                    logger.warning("IMAP fetch connection dropped; reconnecting once")
+                    mailbox = _reconnect(mailbox, settings, mailbox_factory)
             if status != "OK":
-                raise EmailAlertSyncError("The configured IMAP mailbox could not be selected")
-            status, payload = mailbox.uid("search", None, "UNSEEN")
-            if status != "OK":
-                raise EmailAlertSyncError("The configured IMAP mailbox could not be searched")
-            message_ids = payload[0].split() if payload and payload[0] else []
-            message_ids = message_ids[-settings.bizbuysell_email_sync_max_messages :]
-            for message_id in message_ids:
-                status, fetch_data = mailbox.uid("fetch", message_id, "(RFC822)")
-                if status != "OK":
-                    continue
-                raw_message = _message_bytes(fetch_data)
-                if raw_message is None or len(raw_message) > settings.bizbuysell_email_max_bytes:
-                    continue
-                extraction = extract_email_alert(
-                    raw_message,
-                    allowed_sender_domains=settings.bizbuysell_email_allowed_sender_domains,
-                    target_cities=settings.restaurant_realty_target_cities,
+                continue
+            raw_message = _message_bytes(fetch_data)
+            if raw_message is None or len(raw_message) > settings.bizbuysell_email_max_bytes:
+                continue
+            extraction = extract_email_alert(
+                raw_message,
+                allowed_sender_domains=settings.bizbuysell_email_allowed_sender_domains,
+                target_cities=settings.restaurant_realty_target_cities,
+            )
+            if extraction is None:
+                continue
+            messages_scanned += 1
+            links_found += len(extraction.urls)
+            for source_url in extraction.urls:
+                _, created = external_leads.add_external_lead_url(
+                    db,
+                    source_url=source_url,
+                    city=extraction.city,
+                    notes=None,
+                    discovery_method=ExternalLeadDiscoveryMethod.EMAIL_ALERT,
                 )
-                if extraction is None:
-                    continue
-                messages_scanned += 1
-                links_found += len(extraction.urls)
-                for source_url in extraction.urls:
-                    _, created = external_leads.add_external_lead_url(
-                        db,
-                        source_url=source_url,
-                        city=extraction.city,
-                        notes=None,
-                        discovery_method=ExternalLeadDiscoveryMethod.EMAIL_ALERT,
-                    )
-                    if created:
-                        leads_created += 1
-                    else:
-                        leads_existing += 1
+                if created:
+                    leads_created += 1
+                else:
+                    leads_existing += 1
+            try:
                 mailbox.uid("store", message_id, "+FLAGS", "(\\Seen)")
+            except _IMAP_CONNECTION_ERRORS:
+                logger.warning("IMAP store connection dropped; reconnecting once")
+                mailbox = _reconnect(mailbox, settings, mailbox_factory)
+                mailbox.uid("store", message_id, "+FLAGS", "(\\Seen)")
+        _safe_logout(mailbox)
+        mailbox = None
         return repository.finish_sync_run(
             db,
             run,
@@ -271,6 +342,7 @@ def sync_email_alerts(
     except EmailAlertSyncDisabledError:
         raise
     except Exception as exc:
+        _safe_logout(mailbox)
         repository.finish_sync_run(
             db,
             run,

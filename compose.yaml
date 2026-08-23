@@ -70,6 +70,12 @@ x-app-environment: &app-environment
   CORPORATE_SCORE_WEIGHT: ${CORPORATE_SCORE_WEIGHT:-0.60}
   RESTAURANT_SCORE_WEIGHT: ${RESTAURANT_SCORE_WEIGHT:-0.40}
 
+x-service-logging: &service-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
@@ -86,6 +92,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    logging: *service-logging
 
   api:
     build:
@@ -98,6 +105,7 @@ services:
       db:
         condition: service_healthy
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    logging: *service-logging
 
   frontend:
     build:
@@ -114,6 +122,7 @@ services:
       - "${FRONTEND_PORT:-3001}:3000"
     depends_on:
       - api
+    logging: *service-logging
 
   scheduler:
     profiles: ["scheduler"]
@@ -126,6 +135,7 @@ services:
         condition: service_started
     command: ["python", "-m", "app.jobs.scheduler"]
     restart: unless-stopped
+    logging: *service-logging
 
   test:
     profiles: ["validation"]
@@ -135,6 +145,7 @@ services:
     volumes:
       - ./backend:/app
     command: ["sh", "-c", "ruff check . && pytest"]
+    logging: *service-logging
 
 volumes:
   restaurant_scout_postgres:
