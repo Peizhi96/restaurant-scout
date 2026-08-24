@@ -72,9 +72,24 @@ non-sensitive listing update and inspect the audit state.
 
 ## 4. Backups and rollback
 
-Schedule an encrypted daily `pg_dump` to storage outside the VM and test restoration
-regularly. Backups contain confidential due-diligence data and must use access controls
-and retention limits appropriate to that data.
+The repository includes a same-VM backup script and systemd timer. The timer runs after
+the daily scan, writes mode-`600` compressed SQL dumps to
+`/opt/restaurant-scout/backups`, validates each gzip stream before publishing it, and
+retains seven days. Install it on the Docker host with:
+
+```bash
+sudo install -o root -g root -m 700 deploy/restaurant-scout-backup /usr/local/sbin/restaurant-scout-backup
+sudo install -o root -g root -m 644 deploy/restaurant-scout-backup.service /etc/systemd/system/restaurant-scout-backup.service
+sudo install -o root -g root -m 644 deploy/restaurant-scout-backup.timer /etc/systemd/system/restaurant-scout-backup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now restaurant-scout-backup.timer
+sudo systemctl start restaurant-scout-backup.service
+```
+
+A same-VM backup protects against application mistakes but not VM or disk loss. Also
+copy backups to encrypted storage outside the VM and test restoration regularly.
+Backups contain confidential due-diligence data and must use access controls and
+retention limits appropriate to that data.
 
 Before every upgrade, record the current `IMAGE_TAG` and take a database backup. To
 roll back application code, restore the prior immutable image tag and run `up -d`.

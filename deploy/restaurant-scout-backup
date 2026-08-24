@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+app_dir="/opt/restaurant-scout"
+backup_dir="$app_dir/backups"
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+final_file="$backup_dir/restaurant-scout-$timestamp.sql.gz"
+temporary_file="$final_file.tmp"
+
+umask 077
+install -d -m 700 "$backup_dir"
+cd "$app_dir"
+
+cleanup() {
+  rm -f "$temporary_file"
+}
+trap cleanup EXIT
+
+docker compose --env-file deploy/.env.production -f compose.production.yaml \
+  exec -T db pg_dump -U restaurant_scout -d restaurant_scout \
+  --no-owner --no-privileges | gzip -9 > "$temporary_file"
+
+gzip -t "$temporary_file"
+mv "$temporary_file" "$final_file"
+find "$backup_dir" -type f -name 'restaurant-scout-*.sql.gz' -mtime +7 -delete
+trap - EXIT
+
+echo "Backup created: $final_file"
