@@ -89,6 +89,27 @@ Or run the reproducible Docker validation target, which executes Ruff and all te
 docker compose --profile validation up --build --abort-on-container-exit --exit-code-from test test
 ```
 
+### End-to-end browser tests (Selenium)
+
+`e2e/` holds a Selenium WebDriver suite that drives headless Chrome through the real dashboard,
+API, and PostgreSQL stack. It seeds uniquely named listings through the manual-ingestion API, then
+checks the operator workflow: the dashboard shows new listings, the city filter narrows and clears
+results, the detail page keeps unknown facts explicit, and a saved review persists across reloads
+and drives the pipeline filter. It also verifies that the dashboard rejects missing or wrong
+credentials. Tests use page objects (`e2e/pages.py`) and save a screenshot plus page HTML for any
+failure. CI runs the suite on every pull request after the backend and frontend jobs pass.
+
+To run it locally (the suite refuses non-local URLs unless `E2E_ALLOW_REMOTE=1` is set, because it
+writes test listings):
+
+```bash
+export INTERNAL_API_KEY=local-e2e-key APP_AUTH_USERNAME=e2e-operator APP_AUTH_PASSWORD=e2e-password
+docker compose up --build --detach db api frontend
+cd e2e
+python -m pip install -r requirements.txt
+pytest -v                      # set E2E_HEADLESS=false to watch the browser
+```
+
 ## Run daily collection
 
 Set `RESTAURANT_REALTY_ENABLED=true` in the gitignored local `.env`, then start the
